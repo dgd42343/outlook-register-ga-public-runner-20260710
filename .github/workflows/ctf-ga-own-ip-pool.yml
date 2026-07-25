@@ -1859,12 +1859,11 @@ jobs:
             exit 0
           fi
           success=false
-          # The panel's hourly nginx reconciliation has produced a measured
-          # ~75s window where this exact route returns 404. Newly-created
-          # mailboxes can also need a short provisioning window before Graph
-          # Inbox is ready. Other OAuth/application failures remain final.
-          retry_delays=(0 30 60 120 180)
-          for retry in 1 2 3 4 5; do
+          # Retry only transport/route availability failures here. OAuth and
+          # Graph provisioning retries are persisted and rate-limited by the
+          # backend so this runner never repeats account login in a tight loop.
+          retry_delays=(0 30 90)
+          for retry in 1 2 3; do
             if [ "$retry" -gt 1 ]; then
               sleep "${retry_delays[$((retry - 1))]}"
             fi
@@ -1899,28 +1898,26 @@ jobs:
               'account_id': row.get('account_id') if ok else None,
               'created': row.get('created') if ok else None,
               'error_code': error_code if not ok else None,
+              'retry_scheduled': bool(row.get('retry_scheduled')) if not ok else False,
+              'backend_attempt_count': int(row.get('attempt_count') or 0),
           }
           Path('Results/diagnostics/outlook_email_ingest.json').write_text(
               json.dumps(safe, ensure_ascii=False, indent=2), encoding='utf-8'
           )
           if ok:
               raise SystemExit(0)
-          # A newly-created mailbox can briefly issue OAuth tokens before its
-          # Graph Inbox resource is provisioned. Retry this one application
-          # failure only; auth, token and configuration failures remain final.
-          raise SystemExit(75 if error_code == 'graph_probe_failed' else 1)
+          raise SystemExit(1)
           PY
             parse_ec=$?
             if [ "$parse_ec" -eq 0 ]; then
               success=true
               break
             fi
-            if [ "$parse_ec" -eq 75 ]; then
-              echo "outlookEmail Graph probe not ready; retry=$retry/5"
-              continue
-            fi
             case "$http_code" in
-              000|404|408|425|429|5??) continue ;;
+              000|404|408|425|429|502|503|504)
+                echo "outlookEmail route unavailable; retry=$retry/3 status=$http_code"
+                continue
+                ;;
               *) break ;;
             esac
           done
@@ -2317,6 +2314,8 @@ jobs:
           graph_import_attempted = bool(ingest.get("attempted"))
           graph_import_ok = ingest.get("success") is True
           graph_import_attempts = int(ingest.get("retry") or 0)
+          graph_retry_scheduled = ingest.get("retry_scheduled") is True
+          graph_backend_attempt_count = int(ingest.get("backend_attempt_count") or 0)
           graph_import_error = str(ingest.get("error_code") or "")
           allowed_ingest_errors = {
               "input_invalid", "oauth_failed", "token_validation_failed",
@@ -2328,6 +2327,8 @@ jobs:
               account_lifecycle = "not_created"
           elif graph_import_ok:
               account_lifecycle = "graph_healthy"
+          elif graph_retry_scheduled:
+              account_lifecycle = "created_graph_deferred"
           elif graph_import_attempted:
               account_lifecycle = "created_graph_unhealthy"
           else:
@@ -2467,6 +2468,8 @@ jobs:
               "graph_import_attempted": graph_import_attempted,
               "graph_import_ok": graph_import_ok,
               "graph_import_attempts": graph_import_attempts,
+              "graph_retry_scheduled": graph_retry_scheduled,
+              "graph_backend_attempt_count": graph_backend_attempt_count,
               "graph_import_error_code": graph_import_error,
               "explicit_riskblock": explicit_riskblock,
               "accepted_result0": accepted_result0,

@@ -174,6 +174,27 @@ class VerdictSummaryTests(unittest.TestCase):
         self.assertEqual(summary["observed_config"]["email_domain"], [None])
         self.assertAlmostEqual(summary["graph_healthy_per_min"], 0.1)
 
+    def test_counts_backend_deferred_separately_from_graph_healthy(self):
+        rows = [
+            verdict(
+                1,
+                "strict_success",
+                strict_success=True,
+                graph_import_ok=False,
+                graph_retry_scheduled=True,
+                account_lifecycle="created_graph_deferred",
+            )
+        ]
+        summary = summarize_verdicts(
+            rows=rows,
+            expected_slots=1,
+            batch_marker="target-b001",
+            run_info=self.run_info,
+        )
+
+        self.assertEqual(summary["graph_healthy"], 0)
+        self.assertEqual(summary["graph_deferred"], 1)
+
     def test_rejects_wrong_orchestration_marker(self):
         rows = [verdict(1, "ip_skipped", marker="wrong")]
         with self.assertRaises(OrchestratorError):

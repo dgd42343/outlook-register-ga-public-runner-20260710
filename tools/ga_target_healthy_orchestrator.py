@@ -272,6 +272,12 @@ def summarize_verdicts(
         if row.get("graph_import_ok") is True
         and row.get("account_lifecycle") == "graph_healthy"
     ]
+    deferred = [
+        row
+        for row in strict
+        if row.get("graph_retry_scheduled") is True
+        and row.get("account_lifecycle") == "created_graph_deferred"
+    ]
     fresh = [
         row
         for row in live
@@ -310,6 +316,7 @@ def summarize_verdicts(
         "accepted_result0": len(accepted),
         "strict_create_account": len(strict),
         "graph_healthy": len(healthy),
+        "graph_deferred": len(deferred),
         "fresh_challenge": len(fresh),
         "explicit_riskblock": len(risk),
         "probe_timeout": sum(bool(row.get("probe_timed_out")) for row in live),
