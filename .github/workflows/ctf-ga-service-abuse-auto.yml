@@ -91,10 +91,23 @@ on:
         description: "Maximum outer holds for the same rendered natural challenge (1-3); 2 is bridge+force and 3 is registration-equivalent"
         required: true
         default: "3"
+      natural_same_challenge_settle_mode:
+        description: "Pre-approach retry timing: 12s control, guarded early treatment, or odd/even slot A/B"
+        required: true
+        default: "control12"
+        type: choice
+        options:
+          - control12
+          - early0
+          - slot_ab
+      hsprotect_main_asset_sha256:
+        description: "Exact live HSProtect main.min.js SHA-256 required before an account lease"
+        required: true
+        default: "b345cbfcd17ce9ece43aab61b9e6addecf1e471b6e9aad1ebea7aa14232ae6e9"
       recovery_source_ref:
         description: "Pinned private recovery-control source commit"
         required: true
-        default: "85246e52681c3ff0a97c1c76111a75a67820b51a"
+        default: "a67609eae98750b4b1c55b5a79898137704d1ea1"
       egress_prefix_denylist:
         description: "Known-bad GA egress prefixes skipped before an account lease is acquired"
         required: false
@@ -148,7 +161,10 @@ jobs:
       NATURAL_FORCE_W0_AFTER_MINUS1: ${{ inputs.natural_force_w0_after_minus1 || 'false' }}
       NATURAL_SERVER_CHALLENGE_ROUNDS: ${{ inputs.natural_server_challenge_rounds || '3' }}
       NATURAL_SAME_CHALLENGE_HOLD_ATTEMPTS: ${{ inputs.natural_same_challenge_hold_attempts || '3' }}
-      RECOVERY_SOURCE_REF: ${{ inputs.recovery_source_ref || '85246e52681c3ff0a97c1c76111a75a67820b51a' }}
+      NATURAL_SAME_CHALLENGE_PHYSICAL_HOLD_LIMIT: "2"
+      NATURAL_SAME_CHALLENGE_SETTLE_MODE: ${{ inputs.natural_same_challenge_settle_mode || 'control12' }}
+      HSPROTECT_MAIN_ASSET_SHA256: ${{ inputs.hsprotect_main_asset_sha256 || 'b345cbfcd17ce9ece43aab61b9e6addecf1e471b6e9aad1ebea7aa14232ae6e9' }}
+      RECOVERY_SOURCE_REF: ${{ inputs.recovery_source_ref || 'a67609eae98750b4b1c55b5a79898137704d1ea1' }}
     steps:
       - name: Reject GitHub UI re-runs
         if: github.run_attempt != 1
@@ -185,6 +201,11 @@ jobs:
           source_ref = os.environ.get("RECOVERY_SOURCE_REF", "")
           if not re.fullmatch(r"[0-9a-f]{40}", source_ref):
               raise SystemExit("recovery_source_ref must be an exact lowercase 40-hex commit")
+          expected_hs_asset = os.environ.get("HSPROTECT_MAIN_ASSET_SHA256", "")
+          if not re.fullmatch(r"[0-9a-f]{64}", expected_hs_asset):
+              raise SystemExit(
+                  "hsprotect_main_asset_sha256 must be an exact lowercase 64-hex digest"
+              )
           runner_label = os.environ.get("RECOVERY_RUNNER_LABEL", "")
           if runner_label not in {"ubuntu-22.04", "windows-2022"}:
               raise SystemExit("runner must be ubuntu-22.04 or windows-2022")
@@ -254,6 +275,34 @@ jobs:
           if not 1 <= same_challenge_hold_attempts <= 3:
               raise SystemExit(
                   "natural_same_challenge_hold_attempts must be in range 1..3"
+              )
+          settle_mode = os.environ.get(
+              "NATURAL_SAME_CHALLENGE_SETTLE_MODE", "control12"
+          )
+          if settle_mode not in {"control12", "early0", "slot_ab"}:
+              raise SystemExit(
+                  "natural_same_challenge_settle_mode must be control12, early0, or slot_ab"
+              )
+          if same_challenge_hold_attempts < 2 and settle_mode != "control12":
+              raise SystemExit(
+                  "retry timing treatment requires at least two same-challenge hold attempts"
+              )
+          physical_hold_limit = int(
+              os.environ.get("NATURAL_SAME_CHALLENGE_PHYSICAL_HOLD_LIMIT", "0")
+          )
+          if physical_hold_limit != 2:
+              raise SystemExit(
+                  "retry timing A/B requires a hard limit of two physical holds"
+              )
+          if settle_mode == "slot_ab":
+              settle_arm = "early0" if current % 2 else "control12"
+          else:
+              settle_arm = settle_mode
+          settle_seconds = "0" if settle_arm == "early0" else "12"
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as fh:
+              fh.write(
+                  f"NATURAL_SAME_CHALLENGE_SETTLE_ARM={settle_arm}\n"
+                  f"NATURAL_SAME_CHALLENGE_SETTLE_SECONDS={settle_seconds}\n"
               )
           if human_mode == "exact5s" and (mode != "ads_safe" or bridge != "true"):
               raise SystemExit(
@@ -361,13 +410,18 @@ jobs:
           print(f"natural force W0 after minus1={force_minus1}")
           print(f"natural server challenge rounds={rounds}")
           print(f"natural same-challenge hold attempts={same_challenge_hold_attempts}")
+          print(
+              "natural same-challenge settle "
+              f"mode={settle_mode} arm={settle_arm} seconds={settle_seconds}"
+          )
+          print(f"natural same-challenge physical hold limit={physical_hold_limit}")
           PY
 
       - name: Checkout private recovery control plane
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.recovery_source_ref || '85246e52681c3ff0a97c1c76111a75a67820b51a' }}
+          ref: ${{ inputs.recovery_source_ref || 'a67609eae98750b4b1c55b5a79898137704d1ea1' }}
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
 
@@ -930,6 +984,90 @@ jobs:
           chmod 600 "$private"/*.json
           echo "private_dir=$private" >> "$GITHUB_OUTPUT"
 
+      - name: Gate live HSProtect client asset before account lease
+        if: steps.egress.outputs.admitted == 'true'
+        id: hs_asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          proxy_args=()
+          if [ "$RECOVERY_NETWORK_MODE" = "proxy_pool" ]; then
+            test -n "${OUTLOOK_PROXY_URL:-}"
+            proxy_args=(--proxy "$OUTLOOK_PROXY_URL")
+          fi
+          first="$RUNNER_TEMP/hsprotect-main-first.min.js"
+          second="$RUNNER_TEMP/hsprotect-main-second.min.js"
+          fetch_ok=true
+          curl -fsSL --retry 2 --retry-all-errors --max-time 30 \
+            "${proxy_args[@]}" \
+            https://client.hsprotect.net/PXzC5j78di/main.min.js \
+            -o "$first" || fetch_ok=false
+          sleep 1
+          curl -fsSL --retry 2 --retry-all-errors --max-time 30 \
+            "${proxy_args[@]}" \
+            https://client.hsprotect.net/PXzC5j78di/main.min.js \
+            -o "$second" || fetch_ok=false
+          FETCH_OK="$fetch_ok" FIRST="$first" SECOND="$second" \
+            "$VENV_PYTHON" - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+
+          expected = os.environ.get("HSPROTECT_MAIN_ASSET_SHA256", "").strip()
+          fetch_ok = os.environ.get("FETCH_OK") == "true"
+
+          def identity(raw_path):
+              path = Path(raw_path)
+              if not path.is_file():
+                  return {"present": False, "length": 0, "sha256": ""}
+              body = path.read_bytes()
+              return {
+                  "present": True,
+                  "length": len(body),
+                  "sha256": hashlib.sha256(body).hexdigest(),
+              }
+
+          first = identity(os.environ["FIRST"])
+          second = identity(os.environ["SECOND"])
+          stable = (
+              first["present"]
+              and second["present"]
+              and first["length"] == second["length"]
+              and first["sha256"] == second["sha256"]
+          )
+          actual = first["sha256"] if stable else ""
+          admitted = fetch_ok and stable and actual == expected
+          if admitted:
+              reason = "pinned_asset_admitted"
+          elif not fetch_ok or not first["present"] or not second["present"]:
+              reason = "asset_fetch_failed"
+          elif not stable:
+              reason = "asset_changed_during_gate"
+          else:
+              reason = "asset_sha256_mismatch"
+          safe = {
+              "asset": "client.hsprotect.net/PXzC5j78di/main.min.js",
+              "expected_sha256": expected,
+              "first_sha256": first["sha256"] or None,
+              "first_length": first["length"],
+              "second_sha256": second["sha256"] or None,
+              "second_length": second["length"],
+              "stable": stable,
+              "admitted": admitted,
+              "reason": reason,
+          }
+          out = Path(os.environ["RUNNER_TEMP"]) / "hsprotect-main-asset-safe.json"
+          out.write_text(json.dumps(safe, indent=2), encoding="utf-8")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"admitted={str(admitted).lower()}\n")
+              fh.write(f"actual_sha256={actual}\n")
+              fh.write(f"reason={reason}\n")
+          print(json.dumps(safe))
+          if not admitted:
+              raise SystemExit(
+                  "live HSProtect client asset is not the pinned experimental variant"
+              )
+          PY
+
       - name: Atomically lease oldest service-abuse account
         if: steps.egress.outputs.admitted == 'true'
         id: acquire
@@ -1197,6 +1335,9 @@ jobs:
           CONTROLLER_GUARD_BASE_BLOB: ${{ steps.controller_guard.outputs.base_blob }}
           CONTROLLER_GUARD_DERIVED_BLOB: ${{ steps.controller_guard.outputs.derived_blob }}
           CONTROLLER_GUARD_DERIVED_SHA256: ${{ steps.controller_guard.outputs.derived_sha256 }}
+          HSPROTECT_ASSET_ADMITTED: ${{ steps.hs_asset.outputs.admitted }}
+          HSPROTECT_ASSET_ACTUAL_SHA256: ${{ steps.hs_asset.outputs.actual_sha256 }}
+          HSPROTECT_ASSET_REASON: ${{ steps.hs_asset.outputs.reason }}
         run: |
           set -euo pipefail
           verdict_python="$VENV_PYTHON"
@@ -1276,6 +1417,18 @@ jobs:
               "natural_same_challenge_hold_attempts": int(
                   os.environ.get("NATURAL_SAME_CHALLENGE_HOLD_ATTEMPTS") or 1
               ),
+              "natural_same_challenge_settle_mode": (
+                  os.environ.get("NATURAL_SAME_CHALLENGE_SETTLE_MODE") or None
+              ),
+              "natural_same_challenge_settle_arm": (
+                  os.environ.get("NATURAL_SAME_CHALLENGE_SETTLE_ARM") or None
+              ),
+              "natural_same_challenge_settle_seconds": float(
+                  os.environ.get("NATURAL_SAME_CHALLENGE_SETTLE_SECONDS") or 12
+              ),
+              "natural_same_challenge_physical_hold_limit": int(
+                  os.environ.get("NATURAL_SAME_CHALLENGE_PHYSICAL_HOLD_LIMIT") or 2
+              ),
               "natural_same_challenge_pre_press_guard_applied": (
                   os.environ.get("CONTROLLER_GUARD_APPLIED") == "true"
               ),
@@ -1298,6 +1451,18 @@ jobs:
               "egress_prefix": os.environ.get("EGRESS_PREFIX") or None,
               "selected_name_sha12": os.environ.get("SELECTED_NAME_SHA12") or None,
               "egress_reason": os.environ.get("EGRESS_REASON") or None,
+              "hsprotect_main_asset_expected_sha256": (
+                  os.environ.get("HSPROTECT_MAIN_ASSET_SHA256") or None
+              ),
+              "hsprotect_main_asset_actual_sha256": (
+                  os.environ.get("HSPROTECT_ASSET_ACTUAL_SHA256") or None
+              ),
+              "hsprotect_main_asset_admitted": (
+                  os.environ.get("HSPROTECT_ASSET_ADMITTED") == "true"
+              ),
+              "hsprotect_main_asset_reason": (
+                  os.environ.get("HSPROTECT_ASSET_REASON") or None
+              ),
               "leased": bool(lease.get("leased")),
               "account_id": int(lease.get("account_id") or 0) or None,
               "attempt_number": int(lease.get("attempt_number") or 0) or None,
@@ -1379,6 +1544,7 @@ jobs:
             ${{ runner.temp }}/ga-auto-recovery-verdict.json
             ${{ runner.temp }}/runner-egress-safe.json
             ${{ runner.temp }}/recovery-egress-safe.json
+            ${{ runner.temp }}/hsprotect-main-asset-safe.json
             ${{ steps.acquire.outputs.safe }}
             ${{ steps.recovery.outputs.safe_status }}
             ${{ steps.recovery.outputs.writeback_safe }}
