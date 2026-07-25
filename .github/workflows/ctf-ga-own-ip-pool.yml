@@ -40,7 +40,7 @@ on:
       variant:
         description: "Probe variant to run on each fresh GA egress IP"
         required: true
-        default: "online_ads_ga_production_fast_fail"
+        default: "offline_ads_pool_ga_fresh_rechallenge"
         type: choice
         options:
           - default

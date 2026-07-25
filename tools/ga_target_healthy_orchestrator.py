@@ -108,7 +108,13 @@ def ensure_child_idle(repo: str, workflow: str) -> None:
 
 
 def dispatch_child(
-    *, repo: str, workflow: str, ref: str, slots: int, batch_marker: str
+    *,
+    repo: str,
+    workflow: str,
+    ref: str,
+    variant: str,
+    slots: int,
+    batch_marker: str,
 ) -> int:
     before = {
         int(row["databaseId"])
@@ -129,6 +135,8 @@ def dispatch_child(
             f"node_slots_json={slot_json}",
             "-f",
             f"orchestration_id={batch_marker}",
+            "-f",
+            f"variant={variant}",
         ]
     )
     run_id = parse_run_id((process.stdout or "") + "\n" + (process.stderr or ""))
@@ -417,6 +425,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", ""))
     parser.add_argument("--workflow", default="ctf-ga-own-ip-pool.yml")
     parser.add_argument("--ref", default="main")
+    parser.add_argument(
+        "--variant", default="offline_ads_pool_ga_fresh_rechallenge"
+    )
     parser.add_argument("--target-graph-healthy", type=int, required=True)
     parser.add_argument("--batch-slots", type=int, default=50)
     parser.add_argument("--min-batch-slots", type=int, default=5)
@@ -458,6 +469,7 @@ def main(argv: list[str] | None = None) -> int:
         "repo": args.repo,
         "child_workflow": args.workflow,
         "child_ref": args.ref,
+        "child_variant": args.variant,
         "target_graph_healthy": args.target_graph_healthy,
         "batch_slots_max": args.batch_slots,
         "min_batch_slots": args.min_batch_slots,
@@ -517,6 +529,7 @@ def main(argv: list[str] | None = None) -> int:
                 repo=args.repo,
                 workflow=args.workflow,
                 ref=args.ref,
+                variant=args.variant,
                 slots=slots,
                 batch_marker=batch_marker,
             )

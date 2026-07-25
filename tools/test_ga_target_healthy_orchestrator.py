@@ -1,8 +1,12 @@
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from tools.ga_target_healthy_orchestrator import (
     OrchestratorError,
     compute_next_batch_size,
+    dispatch_child,
+    parse_args,
     parse_run_id,
     summarize_verdicts,
 )
@@ -56,6 +60,34 @@ class ParseRunIdTests(unittest.TestCase):
 
     def test_missing_url_returns_none(self):
         self.assertIsNone(parse_run_id("workflow dispatched"))
+
+
+class DispatchDefaultsTests(unittest.TestCase):
+    def test_production_variant_defaults_to_offline_ads_pool(self):
+        args = parse_args(
+            ["--repo", "a/b", "--target-graph-healthy", "1", "--dry-run"]
+        )
+        self.assertEqual(args.variant, "offline_ads_pool_ga_fresh_rechallenge")
+
+    @patch("tools.ga_target_healthy_orchestrator.run_gh")
+    @patch("tools.ga_target_healthy_orchestrator.list_child_runs", return_value=[])
+    def test_dispatch_pins_requested_variant(self, _list_child_runs, run_gh):
+        run_gh.return_value = SimpleNamespace(
+            stdout="https://github.com/a/b/actions/runs/29417330058", stderr=""
+        )
+
+        run_id = dispatch_child(
+            repo="a/b",
+            workflow="ctf-ga-own-ip-pool.yml",
+            ref="production",
+            variant="offline_ads_pool_ga_fresh_rechallenge",
+            slots=3,
+            batch_marker="batch-1",
+        )
+
+        self.assertEqual(run_id, 29417330058)
+        arguments = run_gh.call_args.args[0]
+        self.assertIn("variant=offline_ads_pool_ga_fresh_rechallenge", arguments)
 
 
 class AdaptiveBatchTests(unittest.TestCase):
