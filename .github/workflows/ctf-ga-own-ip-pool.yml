@@ -53,6 +53,7 @@ on:
           - online_ads_ga_5s_hold_transplant
           - offline_ads_like_ga_fresh_rechallenge
           - offline_ads_pool_ga_fresh_rechallenge
+          - offline_ads_pool_fresh_cookie_ab_v1
           - semiprotocol_5s_stable
           - sunbrowser_thin_natural
           - sunbrowser_thin_natural_alias_v284a
@@ -213,7 +214,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.variant == 'sunbrowser_fresh_completion_ab_v1' && '8416afe01af20fdc9311441624f01a32f0c99684' || inputs.variant == 'sunbrowser_hardware_template_ab_v1' && '63d36038928a364d4263049dd1a9a184e4552409' || inputs.variant == 'sunbrowser_webgl_integrity_ab_v1' && '64b9ca34ee7ce95407a22cf7e6c36562185eb077' || inputs.variant == 'sunbrowser_profile_state_ab_v1' && '73d4cffbbb31322f254903cb83890e4179a4b589' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' && '77ed97ba2e15e4bf107e88a2e8c7a88e0aadef40' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' && '31e5d63efa879f753a71e0ac820c2bedfad376a1' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' && '2df4a7f25cd9c971b5ffba81174f7889432a2e77' || inputs.variant == 'sunbrowser_thin_natural' && '0f7a8643cf2ec6232f797e041f0cd79427bf38b9' || inputs.variant == 'historical_ga_success_default' && 'f8c9c0ea377a08b4c5c10a05c0558cda85d5a01a' || inputs.variant == 'historical_ga_highrate_336a973' && '336a97312e3e89219ad6179b196bfa99239cb13e' || inputs.variant == 'historical_ga_fresh_rechallenge' && '96787a7561f5e4b8786c2fda9cf3f8f1da0035bf' || inputs.variant == 'online_ads_ga_fresh_rechallenge' && '31dfe0e28e5da13645a455dba6737c19346faf63' || inputs.variant == 'online_ads_ga_production_fast_fail' && '875b0571d5b9c88b89a5bbc64f30488ee9565962' || inputs.variant == 'online_ads_ga_fresh_5s_recovery' && 'ae0745a95f73bec3ab24b9a5ce461bae1fa4a371' || inputs.variant == 'online_ads_ga_5s_hold_transplant' && '01086ae6d319a8bbf019ddb34267edd59ac7ec31' || (inputs.variant == 'release_5s_success_baseline' || inputs.variant == 'release_5s_success_attempt2') && '00b68437e041cbdcee2be209a18d7a5592f4c2dd' || (inputs.variant == 'offline_ads_like_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge') && '0838ef3a52c6eb337b0847762757d282b36b9e5e' || vars.PRIVATE_SOURCE_REF }}
+          ref: ${{ inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' && 'c183e15554378a23b0a79e38eeeffb5173fa9a3a' || inputs.variant == 'sunbrowser_fresh_completion_ab_v1' && '8416afe01af20fdc9311441624f01a32f0c99684' || inputs.variant == 'sunbrowser_hardware_template_ab_v1' && '63d36038928a364d4263049dd1a9a184e4552409' || inputs.variant == 'sunbrowser_webgl_integrity_ab_v1' && '64b9ca34ee7ce95407a22cf7e6c36562185eb077' || inputs.variant == 'sunbrowser_profile_state_ab_v1' && '73d4cffbbb31322f254903cb83890e4179a4b589' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' && '77ed97ba2e15e4bf107e88a2e8c7a88e0aadef40' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' && '31e5d63efa879f753a71e0ac820c2bedfad376a1' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' && '2df4a7f25cd9c971b5ffba81174f7889432a2e77' || inputs.variant == 'sunbrowser_thin_natural' && '0f7a8643cf2ec6232f797e041f0cd79427bf38b9' || inputs.variant == 'historical_ga_success_default' && 'f8c9c0ea377a08b4c5c10a05c0558cda85d5a01a' || inputs.variant == 'historical_ga_highrate_336a973' && '336a97312e3e89219ad6179b196bfa99239cb13e' || inputs.variant == 'historical_ga_fresh_rechallenge' && '96787a7561f5e4b8786c2fda9cf3f8f1da0035bf' || inputs.variant == 'online_ads_ga_fresh_rechallenge' && '31dfe0e28e5da13645a455dba6737c19346faf63' || inputs.variant == 'online_ads_ga_production_fast_fail' && '875b0571d5b9c88b89a5bbc64f30488ee9565962' || inputs.variant == 'online_ads_ga_fresh_5s_recovery' && 'ae0745a95f73bec3ab24b9a5ce461bae1fa4a371' || inputs.variant == 'online_ads_ga_5s_hold_transplant' && '01086ae6d319a8bbf019ddb34267edd59ac7ec31' || (inputs.variant == 'release_5s_success_baseline' || inputs.variant == 'release_5s_success_attempt2') && '00b68437e041cbdcee2be209a18d7a5592f4c2dd' || (inputs.variant == 'offline_ads_like_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge') && '0838ef3a52c6eb337b0847762757d282b36b9e5e' || vars.PRIVATE_SOURCE_REF }}
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
           clean: true
@@ -439,11 +440,15 @@ jobs:
           grep -q 'FRESH_RECHALLENGE_ROUNDS' controllers/base_controller.py
 
       - name: Verify offline ADS profile pool source
-        if: ${{ inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' }}
+        if: ${{ inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' }}
         shell: bash
         run: |
           set -euo pipefail
-          expected=0838ef3a52c6eb337b0847762757d282b36b9e5e
+          if [ "${{ inputs.variant }}" = "offline_ads_pool_fresh_cookie_ab_v1" ]; then
+            expected=c183e15554378a23b0a79e38eeeffb5173fa9a3a
+          else
+            expected=0838ef3a52c6eb337b0847762757d282b36b9e5e
+          fi
           actual=$(git rev-parse HEAD)
           test "$actual" = "$expected"
           test -f config.ads_offline_profile_pool.json
@@ -459,6 +464,10 @@ jobs:
           PY
           grep -q '_wait_for_ga_coordinator' controllers/patchright_controller.py
           grep -q 'minimal_natural_hold' protocol_runtime_probe.py
+          if [ "${{ inputs.variant }}" = "offline_ads_pool_fresh_cookie_ab_v1" ]; then
+            grep -q 'FRESH_CLEAR_SOLUTION_COOKIES' controllers/base_controller.py
+            grep -q 'solution_cookie_policy' controllers/base_controller.py
+          fi
 
       # Capture egress + denylist BEFORE heavy setup/stagger so bad prefixes exit in ~1 min.
       - name: Capture GA egress
@@ -842,7 +851,7 @@ jobs:
           PY
 
       - name: Apply offline ADS profile-pool fingerprint
-        if: ${{ inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' && steps.egress.outputs.should_probe != 'false' }}
+        if: ${{ (inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1') && steps.egress.outputs.should_probe != 'false' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -1446,6 +1455,75 @@ jobs:
           PY
           echo "[SUN_FRESH_AB] arm=$fresh_arm deadline_seconds=$deadline_seconds rank=$assignment_rank/$assignment_total"
 
+      - name: Prepare offline ADS fresh cookie continuity A-B
+        if: ${{ inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' }}
+        shell: bash
+        env:
+          COOKIE_SLOT: ${{ matrix.attempt }}
+          COOKIE_SLOTS_JSON: ${{ inputs.node_slots_json }}
+          COOKIE_ASSIGNMENT_SEED: ${{ inputs.orchestration_id }}
+          PER_IP_MAX_REGISTRATIONS: ${{ inputs.per_ip_max_registrations }}
+        run: |
+          set -euo pipefail
+          mkdir -p Results/diagnostics
+          if [ "$PER_IP_MAX_REGISTRATIONS" -ne 1 ]; then
+            echo "fresh cookie continuity A/B requires per_ip_max_registrations=1" >&2
+            exit 2
+          fi
+          assignment=$(python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+
+          slots = [str(item) for item in json.loads(os.environ["COOKIE_SLOTS_JSON"])]
+          current = str(os.environ["COOKIE_SLOT"])
+          seed = os.environ.get("COOKIE_ASSIGNMENT_SEED") or os.environ["GITHUB_RUN_ID"]
+          ranked = sorted(
+              slots,
+              key=lambda slot: hashlib.sha256(f"{seed}:{slot}".encode()).digest(),
+          )
+          if current not in ranked:
+              raise SystemExit(f"matrix slot {current!r} missing from COOKIE_SLOTS_JSON")
+          rank = ranked.index(current) + 1
+          treatment_count = (len(ranked) + 1) // 2
+          arm = "preserve_treatment" if rank <= treatment_count else "clear_control"
+          clear_solution_cookies = 0 if arm == "preserve_treatment" else 1
+          seed_sha = hashlib.sha256(seed.encode()).hexdigest()[:12]
+          print(
+              f"{arm}\t{clear_solution_cookies}\t{rank}\t{len(ranked)}\t{seed_sha}"
+          )
+          PY
+          )
+          IFS=$'\t' read -r cookie_arm clear_solution_cookies assignment_rank assignment_total assignment_seed_sha <<<"$assignment"
+          test -n "$cookie_arm"
+          echo "OUTLOOK_SIGNUP_PROTOCOL_TAKEOVER_FRESH_CLEAR_SOLUTION_COOKIES=$clear_solution_cookies" >> "$GITHUB_ENV"
+          COOKIE_ARM="$cookie_arm" \
+          CLEAR_SOLUTION_COOKIES="$clear_solution_cookies" \
+          ASSIGNMENT_RANK="$assignment_rank" \
+          ASSIGNMENT_TOTAL="$assignment_total" \
+          ASSIGNMENT_SEED_SHA="$assignment_seed_sha" \
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          row = {
+              "policy": "fresh_solution_cookie_preserve_ab_v1_balanced_hash",
+              "arm": os.environ["COOKIE_ARM"],
+              "assignment_rank": int(os.environ["ASSIGNMENT_RANK"]),
+              "assignment_total": int(os.environ["ASSIGNMENT_TOTAL"]),
+              "assignment_seed_sha256_12": os.environ["ASSIGNMENT_SEED_SHA"],
+              "clear_solution_cookies": (
+                  os.environ["CLEAR_SOLUTION_COOKIES"] == "1"
+              ),
+          }
+          Path("Results/diagnostics/offline_ads_fresh_cookie_ab.json").write_text(
+              json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8"
+          )
+          print(json.dumps(row, ensure_ascii=False))
+          PY
+          echo "[OFFLINE_FRESH_COOKIE_AB] arm=$cookie_arm clear=$clear_solution_cookies rank=$assignment_rank/$assignment_total"
+
       - name: Run no-proxy live probe on GA own IP
         if: ${{ steps.egress.outputs.should_probe != 'false' }}
         id: live
@@ -1801,7 +1879,7 @@ jobs:
               cmd=(./run_xvfb_natural_5s_transplant_1920.sh)
             elif [ "$variant" = "online_ads_ga_fresh_5s_recovery" ]; then
               cmd=(./run_xvfb_natural_fresh_5s_1920.sh)
-            elif [ "$variant" = "historical_ga_success_default" ] || [ "$variant" = "historical_ga_highrate_336a973" ] || [ "$variant" = "historical_ga_fresh_rechallenge" ] || [ "$variant" = "online_ads_ga_fresh_rechallenge" ] || [ "$variant" = "online_ads_ga_production_fast_fail" ] || [ "$variant" = "offline_ads_like_ga_fresh_rechallenge" ] || [ "$variant" = "offline_ads_pool_ga_fresh_rechallenge" ]; then
+            elif [ "$variant" = "historical_ga_success_default" ] || [ "$variant" = "historical_ga_highrate_336a973" ] || [ "$variant" = "historical_ga_fresh_rechallenge" ] || [ "$variant" = "online_ads_ga_fresh_rechallenge" ] || [ "$variant" = "online_ads_ga_production_fast_fail" ] || [ "$variant" = "offline_ads_like_ga_fresh_rechallenge" ] || [ "$variant" = "offline_ads_pool_ga_fresh_rechallenge" ] || [ "$variant" = "offline_ads_pool_fresh_cookie_ab_v1" ]; then
               cmd=(./run_xvfb_natural_1920.sh)
             else
               cmd=(./run_xvfb_natural_1920.sh)
@@ -2273,6 +2351,52 @@ jobs:
           def optional_bool(value):
               return value if isinstance(value, bool) else None
 
+          def load_protocol_event_evidence():
+              rows = []
+              for path in sorted(Path("Results/protocol_takeover").glob("*.jsonl")):
+                  try:
+                      lines = path.read_text(encoding="utf-8").splitlines()
+                  except Exception:
+                      continue
+                  for line in lines:
+                      try:
+                          event_row = json.loads(line)
+                      except Exception:
+                          continue
+                      if isinstance(event_row, dict):
+                          rows.append(event_row)
+              starts = [
+                  event_row for event_row in rows
+                  if event_row.get("event") == "fresh_rechallenge_start"
+              ]
+              done = [
+                  event_row for event_row in rows
+                  if event_row.get("event") == "fresh_rechallenge_captcha_done"
+              ]
+              resets = [
+                  event_row for event_row in rows
+                  if event_row.get("event") == "fresh_rechallenge_isolation_reset"
+              ]
+              policies = sorted({
+                  str(event_row.get("solution_cookie_policy"))
+                  for event_row in resets
+                  if event_row.get("solution_cookie_policy") in {"clear", "preserve"}
+              })
+              return {
+                  "rounds_started": min(len(starts), 3),
+                  "captcha_result0": any(
+                      (event_row.get("protocol") or {}).get("ok") is True
+                      for event_row in done
+                  ),
+                  "nested": any(
+                      event_row.get("event") == "fresh_rechallenge_nested"
+                      for event_row in rows
+                  ),
+                  "solution_cookie_policy_observed": (
+                      policies[0] if len(policies) == 1 else None
+                  ),
+              }
+
           row = load_json("/tmp/private_classification.json")
           ingest = load_json("Results/diagnostics/outlook_email_ingest.json")
           ads_fetch = load_json("Results/diagnostics/ads_online_fetch.json")
@@ -2296,6 +2420,10 @@ jobs:
           sunbrowser_fresh = load_json(
               "Results/diagnostics/sunbrowser_fresh_completion_ab.json"
           )
+          offline_fresh_cookie = load_json(
+              "Results/diagnostics/offline_ads_fresh_cookie_ab.json"
+          )
+          protocol_event_evidence = load_protocol_event_evidence()
           skipped = Path("Results/diagnostics/egress_skip.txt").exists()
           timed_out = Path("Results/diagnostics/probe_timeout.txt").exists()
           fresh_absolute_timed_out = Path(
@@ -2516,6 +2644,36 @@ jobs:
           )
           sunbrowser_fresh_rounds = bounded_int(
               sunbrowser_fresh.get("fresh_rounds"), 1, 1
+          )
+          offline_fresh_cookie_policy = str(
+              offline_fresh_cookie.get("policy") or ""
+          ) or None
+          if offline_fresh_cookie_policy not in {
+              None, "fresh_solution_cookie_preserve_ab_v1_balanced_hash"
+          }:
+              offline_fresh_cookie_policy = None
+          offline_fresh_cookie_arm = str(
+              offline_fresh_cookie.get("arm") or ""
+          ) or None
+          if offline_fresh_cookie_arm not in {
+              None, "preserve_treatment", "clear_control"
+          }:
+              offline_fresh_cookie_arm = None
+          offline_fresh_cookie_assignment_rank = bounded_int(
+              offline_fresh_cookie.get("assignment_rank"), 1, 1000
+          )
+          offline_fresh_cookie_assignment_total = bounded_int(
+              offline_fresh_cookie.get("assignment_total"), 1, 1000
+          )
+          offline_fresh_cookie_assignment_seed_sha = str(
+              offline_fresh_cookie.get("assignment_seed_sha256_12") or ""
+          )
+          if not re.fullmatch(
+              r"[0-9a-f]{12}", offline_fresh_cookie_assignment_seed_sha
+          ):
+              offline_fresh_cookie_assignment_seed_sha = None
+          offline_fresh_cookie_clear_solution_cookies = optional_bool(
+              offline_fresh_cookie.get("clear_solution_cookies")
           )
           try:
               ads_profile_selected_index = int(ads_fetch["selected_index"])
@@ -2944,6 +3102,33 @@ jobs:
               ),
               "sunbrowser_fresh_hold_retries": sunbrowser_fresh_hold_retries,
               "sunbrowser_fresh_rounds": sunbrowser_fresh_rounds,
+              "offline_fresh_cookie_policy": offline_fresh_cookie_policy,
+              "offline_fresh_cookie_arm": offline_fresh_cookie_arm,
+              "offline_fresh_cookie_assignment_rank": (
+                  offline_fresh_cookie_assignment_rank
+              ),
+              "offline_fresh_cookie_assignment_total": (
+                  offline_fresh_cookie_assignment_total
+              ),
+              "offline_fresh_cookie_assignment_seed_sha256_12": (
+                  offline_fresh_cookie_assignment_seed_sha
+              ),
+              "offline_fresh_cookie_clear_solution_cookies": (
+                  offline_fresh_cookie_clear_solution_cookies
+              ),
+              "fresh_rechallenge_started": (
+                  protocol_event_evidence["rounds_started"] > 0
+              ),
+              "fresh_rechallenge_rounds_started": (
+                  protocol_event_evidence["rounds_started"]
+              ),
+              "fresh_rechallenge_captcha_result0": (
+                  protocol_event_evidence["captcha_result0"]
+              ),
+              "fresh_rechallenge_nested": protocol_event_evidence["nested"],
+              "fresh_solution_cookie_policy_observed": (
+                  protocol_event_evidence["solution_cookie_policy_observed"]
+              ),
               "fresh_session_restart_policy": fresh_session_restart_policy,
               "fresh_session_restart_arm": fresh_session_restart_arm,
               "fresh_session_restart_attempted": fresh_session_restart_attempted,
@@ -3127,6 +3312,7 @@ jobs:
           webgl_integrity_ab = None
           hardware_template_ab = None
           fresh_completion_ab = None
+          fresh_cookie_ab = None
           if variant == "sunbrowser_profile_state_ab_v1":
               expected_arms = {"prewarmed_treatment", "pristine_control"}
               arm_counts = Counter(
@@ -3599,6 +3785,147 @@ jobs:
                   else "fresh_completion_ab_invalid"
               )
               goal_met = experiment_complete
+          elif variant == "offline_ads_pool_fresh_cookie_ab_v1":
+              expected_arms = {"preserve_treatment", "clear_control"}
+              arm_counts = Counter(
+                  str(row.get("offline_fresh_cookie_arm") or "missing")
+                  for row in rows
+              )
+              assignment_ranks = [
+                  row.get("offline_fresh_cookie_assignment_rank") for row in rows
+              ]
+              assignment_totals = {
+                  row.get("offline_fresh_cookie_assignment_total") for row in rows
+              }
+              assignment_seeds = {
+                  row.get("offline_fresh_cookie_assignment_seed_sha256_12")
+                  for row in rows
+              }
+              assignment_valid = (
+                  expected > 0
+                  and assignment_totals == {expected}
+                  and len(assignment_seeds) == 1
+                  and None not in assignment_seeds
+                  and all(isinstance(rank, int) for rank in assignment_ranks)
+                  and sorted(assignment_ranks) == list(range(1, expected + 1))
+              )
+              balanced = (
+                  set(arm_counts) == expected_arms
+                  and abs(
+                      arm_counts["preserve_treatment"]
+                      - arm_counts["clear_control"]
+                  ) <= 1
+              )
+
+              def fresh_cookie_evidence_is_valid(row):
+                  arm = row.get("offline_fresh_cookie_arm")
+                  if (
+                      row.get("offline_fresh_cookie_policy")
+                      != "fresh_solution_cookie_preserve_ab_v1_balanced_hash"
+                      or arm not in expected_arms
+                  ):
+                      return False
+                  expected_clear = arm == "clear_control"
+                  if (
+                      row.get("offline_fresh_cookie_clear_solution_cookies")
+                      is not expected_clear
+                  ):
+                      return False
+                  started = row.get("fresh_rechallenge_started") is True
+                  observed = row.get("fresh_solution_cookie_policy_observed")
+                  if started:
+                      expected_observed = "clear" if expected_clear else "preserve"
+                      return (
+                          observed == expected_observed
+                          and isinstance(
+                              row.get("fresh_rechallenge_rounds_started"), int
+                          )
+                          and 1 <= row["fresh_rechallenge_rounds_started"] <= 3
+                      )
+                  return (
+                      observed is None
+                      and row.get("fresh_rechallenge_rounds_started") == 0
+                  )
+
+              evidence_valid = sum(
+                  fresh_cookie_evidence_is_valid(row) for row in rows
+              )
+              experiment_complete = (
+                  missing == 0
+                  and len(rows) == expected
+                  and assignment_valid
+                  and balanced
+                  and evidence_valid == expected
+              )
+              by_arm = {}
+              for arm in sorted(expected_arms):
+                  arm_rows = [
+                      row for row in rows
+                      if row.get("offline_fresh_cookie_arm") == arm
+                  ]
+                  live_rows = [
+                      row for row in arm_rows if row.get("category") != "ip_skipped"
+                  ]
+                  fresh_rows = [
+                      row for row in live_rows
+                      if row.get("fresh_rechallenge_started") is True
+                  ]
+                  by_arm[arm] = {
+                      "candidate": len(arm_rows),
+                      "ip_skipped": len(arm_rows) - len(live_rows),
+                      "live": len(live_rows),
+                      "evidence_valid": sum(
+                          fresh_cookie_evidence_is_valid(row) for row in arm_rows
+                      ),
+                      "accepted_result0": sum(
+                          row.get("accepted_result0") is True for row in live_rows
+                      ),
+                      "strict_success": sum(
+                          row.get("strict_success") is True for row in live_rows
+                      ),
+                      "fresh_encountered": len(fresh_rows),
+                      "fresh_captcha_result0": sum(
+                          row.get("fresh_rechallenge_captcha_result0") is True
+                          for row in fresh_rows
+                      ),
+                      "fresh_nested": sum(
+                          row.get("fresh_rechallenge_nested") is True
+                          for row in fresh_rows
+                      ),
+                      "strict_after_fresh": sum(
+                          row.get("strict_success") is True for row in fresh_rows
+                      ),
+                      "unresolved_after_fresh": sum(
+                          row.get("strict_success") is not True for row in fresh_rows
+                      ),
+                      "fresh_rounds_started": sum(
+                          int(row.get("fresh_rechallenge_rounds_started") or 0)
+                          for row in fresh_rows
+                      ),
+                      "explicit_riskblock": sum(
+                          row.get("explicit_riskblock") is True for row in live_rows
+                      ),
+                      "account_lifecycle": dict(sorted(Counter(
+                          str(row.get("account_lifecycle") or "missing")
+                          for row in live_rows
+                      ).items())),
+                      "reasons": dict(sorted(Counter(
+                          str(row.get("reason") or "missing") for row in live_rows
+                      ).items())),
+                  }
+              fresh_cookie_ab = {
+                  "experiment_complete": experiment_complete,
+                  "assignment_valid": assignment_valid,
+                  "balanced": balanced,
+                  "evidence_valid": evidence_valid,
+                  "by_arm": by_arm,
+              }
+              conclusion = (
+                  "fresh_cookie_ab_complete"
+                  if experiment_complete
+                  else "fresh_cookie_ab_invalid"
+              )
+              goal_met = experiment_complete
           elif technical:
               conclusion = "technical_failure"
               goal_met = False
@@ -3632,6 +3959,8 @@ jobs:
               summary["hardware_template_ab"] = hardware_template_ab
           if fresh_completion_ab is not None:
               summary["fresh_completion_ab"] = fresh_completion_ab
+          if fresh_cookie_ab is not None:
+              summary["fresh_cookie_ab"] = fresh_cookie_ab
           print(json.dumps(summary, ensure_ascii=False, indent=2))
 
           step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
