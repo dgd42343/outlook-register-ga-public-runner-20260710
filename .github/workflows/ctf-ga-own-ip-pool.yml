@@ -1077,6 +1077,8 @@ jobs:
         shell: bash
         env:
           STATE_SLOT: ${{ matrix.attempt }}
+          STATE_SLOTS_JSON: ${{ inputs.node_slots_json }}
+          STATE_ASSIGNMENT_SEED: ${{ inputs.orchestration_id }}
           PER_IP_MAX_REGISTRATIONS: ${{ inputs.per_ip_max_registrations }}
         run: |
           set +e
@@ -1093,11 +1095,33 @@ jobs:
           registration_provenance="Results/diagnostics/sunbrowser_state_registration.provenance.safe.json"
           init_log="Results/diagnostics/sunbrowser_state_init.log"
           prewarm_log="Results/diagnostics/sunbrowser_state_prewarm.log"
-          state_arm="prewarmed_treatment"
-          if [ $(( STATE_SLOT % 2 )) -eq 0 ]; then
-            state_arm="pristine_control"
+          assignment=$(python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+
+          slots = [str(item) for item in json.loads(os.environ["STATE_SLOTS_JSON"])]
+          current = str(os.environ["STATE_SLOT"])
+          seed = os.environ.get("STATE_ASSIGNMENT_SEED") or os.environ["GITHUB_RUN_ID"]
+          ranked = sorted(
+              slots,
+              key=lambda slot: hashlib.sha256(f"{seed}:{slot}".encode()).digest(),
+          )
+          if current not in ranked:
+              raise SystemExit(f"matrix slot {current!r} missing from STATE_SLOTS_JSON")
+          rank = ranked.index(current) + 1
+          treatment_count = (len(ranked) + 1) // 2
+          arm = "prewarmed_treatment" if rank <= treatment_count else "pristine_control"
+          seed_sha = hashlib.sha256(seed.encode()).hexdigest()[:12]
+          print(f"{arm}\t{rank}\t{len(ranked)}\t{seed_sha}")
+          PY
+          )
+          IFS=$'\t' read -r state_arm assignment_rank assignment_total assignment_seed_sha <<<"$assignment"
+          if [ -z "$state_arm" ] || [ -z "$assignment_rank" ]; then
+            echo "sunbrowser profile-state balanced assignment failed" >&2
+            exit 2
           fi
-          echo "[SUN_PROFILE_AB] prepare begin arm=$state_arm"
+          echo "[SUN_PROFILE_AB] prepare begin arm=$state_arm rank=$assignment_rank/$assignment_total seed_sha=$assignment_seed_sha"
 
           SUNBROWSER_PROFILE_ID="$profile_id" \
           SUNBROWSER_STATE_ROOT="$base_state" \
@@ -1150,6 +1174,9 @@ jobs:
           } >> "$GITHUB_ENV"
 
           STATE_ARM="$state_arm" \
+          ASSIGNMENT_RANK="$assignment_rank" \
+          ASSIGNMENT_TOTAL="$assignment_total" \
+          ASSIGNMENT_SEED_SHA="$assignment_seed_sha" \
           INIT_EC="$init_ec" \
           COPY_EC="$copy_ec" \
           PREWARM_EC="$prewarm_ec" \
@@ -1177,8 +1204,11 @@ jobs:
                       cookie_count = as_int(candidate.get("microsoft_cookie_count"))
           arm = os.environ["STATE_ARM"]
           row = {
-              "policy": "neutral_microsoft_state_ab_v1",
+              "policy": "neutral_microsoft_state_ab_v2_balanced_hash",
               "arm": arm,
+              "assignment_rank": as_int(os.environ.get("ASSIGNMENT_RANK")),
+              "assignment_total": as_int(os.environ.get("ASSIGNMENT_TOTAL")),
+              "assignment_seed_sha256_12": os.environ.get("ASSIGNMENT_SEED_SHA"),
               "registration_uses_prewarmed_state": arm == "prewarmed_treatment",
               "init_exit_code": as_int(os.environ.get("INIT_EC")),
               "copy_exit_code": as_int(os.environ.get("COPY_EC")),
@@ -1994,7 +2024,9 @@ jobs:
               sunbrowser_profile_state.get("policy") or ""
           ) or None
           if sunbrowser_profile_state_policy not in {
-              None, "neutral_microsoft_state_ab_v1"
+              None,
+              "neutral_microsoft_state_ab_v1",
+              "neutral_microsoft_state_ab_v2_balanced_hash",
           }:
               sunbrowser_profile_state_policy = None
           sunbrowser_profile_state_arm = str(
@@ -2027,6 +2059,17 @@ jobs:
           sunbrowser_profile_state_before_markers = bounded_int(
               sunbrowser_profile_state.get("registration_state_before_markers"), 0, 20
           )
+          sunbrowser_profile_state_assignment_rank = bounded_int(
+              sunbrowser_profile_state.get("assignment_rank"), 1, 1000
+          )
+          sunbrowser_profile_state_assignment_total = bounded_int(
+              sunbrowser_profile_state.get("assignment_total"), 1, 1000
+          )
+          sunbrowser_profile_state_assignment_seed_sha = str(
+              sunbrowser_profile_state.get("assignment_seed_sha256_12") or ""
+          )
+          if not re.fullmatch(r"[0-9a-f]{12}", sunbrowser_profile_state_assignment_seed_sha):
+              sunbrowser_profile_state_assignment_seed_sha = None
           try:
               ads_profile_selected_index = int(ads_fetch["selected_index"])
               ads_profile_source_slot = int(ads_fetch["profile_source_slot"])
@@ -2360,6 +2403,15 @@ jobs:
               "ads_template_sha256": ads_template_sha256,
               "sunbrowser_profile_state_policy": sunbrowser_profile_state_policy,
               "sunbrowser_profile_state_arm": sunbrowser_profile_state_arm,
+              "sunbrowser_profile_state_assignment_rank": (
+                  sunbrowser_profile_state_assignment_rank
+              ),
+              "sunbrowser_profile_state_assignment_total": (
+                  sunbrowser_profile_state_assignment_total
+              ),
+              "sunbrowser_profile_state_assignment_seed_sha256_12": (
+                  sunbrowser_profile_state_assignment_seed_sha
+              ),
               "sunbrowser_profile_state_uses_prewarmed": (
                   sunbrowser_profile_state.get("registration_uses_prewarmed_state") is True
               ),
@@ -2519,6 +2571,7 @@ jobs:
         shell: bash
         env:
           EXPECTED_SLOTS_JSON: ${{ inputs.node_slots_json }}
+          VARIANT: ${{ inputs.variant }}
         run: |
           python - <<'PY'
           import json
@@ -2553,7 +2606,92 @@ jobs:
           checkpoint = strict + technical_pass_ip_blocked
           ip_limited = counts["ip_riskblock"] + counts["ip_skipped"] + technical_pass_ip_blocked
 
-          if technical:
+          variant = os.environ.get("VARIANT", "")
+          profile_state_ab = None
+          if variant == "sunbrowser_profile_state_ab_v1":
+              expected_arms = {"prewarmed_treatment", "pristine_control"}
+              arm_counts = Counter(
+                  str(row.get("sunbrowser_profile_state_arm") or "missing")
+                  for row in rows
+              )
+              assignment_ranks = [
+                  row.get("sunbrowser_profile_state_assignment_rank") for row in rows
+              ]
+              assignment_totals = {
+                  row.get("sunbrowser_profile_state_assignment_total") for row in rows
+              }
+              assignment_seeds = {
+                  row.get("sunbrowser_profile_state_assignment_seed_sha256_12")
+                  for row in rows
+              }
+              setup_valid = sum(
+                  row.get("sunbrowser_profile_state_policy")
+                  == "neutral_microsoft_state_ab_v2_balanced_hash"
+                  and row.get("sunbrowser_profile_state_arm") in expected_arms
+                  and row.get("sunbrowser_profile_state_init_exit_code") == 0
+                  and row.get("sunbrowser_profile_state_copy_exit_code") == 0
+                  and row.get("sunbrowser_profile_state_prewarm_exit_code") == 0
+                  and row.get("sunbrowser_profile_state_bundle_match") is True
+                  and row.get("sunbrowser_profile_state_source_match") is True
+                  and isinstance(row.get("sunbrowser_profile_state_cookie_count"), int)
+                  and row.get("sunbrowser_profile_state_cookie_count") > 0
+                  for row in rows
+              )
+              assignment_valid = (
+                  expected > 0
+                  and assignment_totals == {expected}
+                  and len(assignment_seeds) == 1
+                  and None not in assignment_seeds
+                  and all(isinstance(rank, int) for rank in assignment_ranks)
+                  and sorted(assignment_ranks) == list(range(1, expected + 1))
+              )
+              balanced = (
+                  set(arm_counts) == expected_arms
+                  and abs(
+                      arm_counts["prewarmed_treatment"]
+                      - arm_counts["pristine_control"]
+                  ) <= 1
+              )
+              experiment_complete = (
+                  missing == 0
+                  and len(rows) == expected
+                  and setup_valid == expected
+                  and assignment_valid
+                  and balanced
+              )
+
+              by_arm = {}
+              for arm in sorted(expected_arms):
+                  arm_rows = [
+                      row for row in rows
+                      if row.get("sunbrowser_profile_state_arm") == arm
+                  ]
+                  n = len(arm_rows)
+                  by_arm[arm] = {
+                      "n": n,
+                      "strict_success": sum(row.get("strict_success") is True for row in arm_rows),
+                      "accepted_result0": sum(row.get("accepted_result0") is True for row in arm_rows),
+                      "explicit_riskblock": sum(row.get("explicit_riskblock") is True for row in arm_rows),
+                      "collector_minus1": sum(row.get("reason") == "collector_minus1" for row in arm_rows),
+                      "non_ip": sum(row.get("explicit_riskblock") is not True for row in arm_rows),
+                      "reasons": dict(sorted(Counter(
+                          str(row.get("reason") or "missing") for row in arm_rows
+                      ).items())),
+                  }
+              profile_state_ab = {
+                  "experiment_complete": experiment_complete,
+                  "setup_valid": setup_valid,
+                  "assignment_valid": assignment_valid,
+                  "balanced": balanced,
+                  "by_arm": by_arm,
+              }
+              conclusion = (
+                  "profile_state_ab_complete"
+                  if experiment_complete
+                  else "profile_state_ab_invalid"
+              )
+              goal_met = experiment_complete
+          elif technical:
               conclusion = "technical_failure"
               goal_met = False
           elif checkpoint:
@@ -2578,6 +2716,8 @@ jobs:
               "goal_met": goal_met,
               "conclusion": conclusion,
           }
+          if profile_state_ab is not None:
+              summary["profile_state_ab"] = profile_state_ab
           print(json.dumps(summary, ensure_ascii=False, indent=2))
 
           step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
