@@ -58,6 +58,7 @@ on:
           - sunbrowser_thin_natural_alias_v284a
           - sunbrowser_thin_natural_raw_v284a
           - sunbrowser_thin_natural_envelope_v284a
+          - sunbrowser_profile_state_ab_v1
           - semiprotocol_5s_historical_firstpass
           - semiprotocol_5s_histfp_no_inject_knp
           - release_5s_success_baseline
@@ -209,7 +210,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' && '77ed97ba2e15e4bf107e88a2e8c7a88e0aadef40' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' && '31e5d63efa879f753a71e0ac820c2bedfad376a1' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' && '2df4a7f25cd9c971b5ffba81174f7889432a2e77' || inputs.variant == 'sunbrowser_thin_natural' && '0f7a8643cf2ec6232f797e041f0cd79427bf38b9' || inputs.variant == 'historical_ga_success_default' && 'f8c9c0ea377a08b4c5c10a05c0558cda85d5a01a' || inputs.variant == 'historical_ga_highrate_336a973' && '336a97312e3e89219ad6179b196bfa99239cb13e' || inputs.variant == 'historical_ga_fresh_rechallenge' && '96787a7561f5e4b8786c2fda9cf3f8f1da0035bf' || inputs.variant == 'online_ads_ga_fresh_rechallenge' && '31dfe0e28e5da13645a455dba6737c19346faf63' || inputs.variant == 'online_ads_ga_production_fast_fail' && '875b0571d5b9c88b89a5bbc64f30488ee9565962' || inputs.variant == 'online_ads_ga_fresh_5s_recovery' && 'ae0745a95f73bec3ab24b9a5ce461bae1fa4a371' || inputs.variant == 'online_ads_ga_5s_hold_transplant' && '01086ae6d319a8bbf019ddb34267edd59ac7ec31' || (inputs.variant == 'release_5s_success_baseline' || inputs.variant == 'release_5s_success_attempt2') && '00b68437e041cbdcee2be209a18d7a5592f4c2dd' || (inputs.variant == 'offline_ads_like_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge') && '0838ef3a52c6eb337b0847762757d282b36b9e5e' || vars.PRIVATE_SOURCE_REF }}
+          ref: ${{ inputs.variant == 'sunbrowser_profile_state_ab_v1' && 'bf5c23644d05385d18f77167993bdf4fb243181a' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' && '77ed97ba2e15e4bf107e88a2e8c7a88e0aadef40' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' && '31e5d63efa879f753a71e0ac820c2bedfad376a1' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' && '2df4a7f25cd9c971b5ffba81174f7889432a2e77' || inputs.variant == 'sunbrowser_thin_natural' && '0f7a8643cf2ec6232f797e041f0cd79427bf38b9' || inputs.variant == 'historical_ga_success_default' && 'f8c9c0ea377a08b4c5c10a05c0558cda85d5a01a' || inputs.variant == 'historical_ga_highrate_336a973' && '336a97312e3e89219ad6179b196bfa99239cb13e' || inputs.variant == 'historical_ga_fresh_rechallenge' && '96787a7561f5e4b8786c2fda9cf3f8f1da0035bf' || inputs.variant == 'online_ads_ga_fresh_rechallenge' && '31dfe0e28e5da13645a455dba6737c19346faf63' || inputs.variant == 'online_ads_ga_production_fast_fail' && '875b0571d5b9c88b89a5bbc64f30488ee9565962' || inputs.variant == 'online_ads_ga_fresh_5s_recovery' && 'ae0745a95f73bec3ab24b9a5ce461bae1fa4a371' || inputs.variant == 'online_ads_ga_5s_hold_transplant' && '01086ae6d319a8bbf019ddb34267edd59ac7ec31' || (inputs.variant == 'release_5s_success_baseline' || inputs.variant == 'release_5s_success_attempt2') && '00b68437e041cbdcee2be209a18d7a5592f4c2dd' || (inputs.variant == 'offline_ads_like_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge') && '0838ef3a52c6eb337b0847762757d282b36b9e5e' || vars.PRIVATE_SOURCE_REF }}
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
           clean: true
@@ -551,7 +552,7 @@ jobs:
           fc-match 'Calibri' | head -1
 
       - name: Install pinned SunBrowser LocalFP runtime
-        if: ${{ steps.egress.outputs.should_probe != 'false' && (inputs.variant == 'sunbrowser_thin_natural' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a') }}
+        if: ${{ steps.egress.outputs.should_probe != 'false' && (inputs.variant == 'sunbrowser_thin_natural' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' || inputs.variant == 'sunbrowser_profile_state_ab_v1') }}
         shell: bash
         env:
           NETWORK_MODE_INPUT: ${{ inputs.network_mode }}
@@ -608,7 +609,7 @@ jobs:
           . .venv/bin/activate
           python -m pip install --upgrade pip wheel setuptools
           pip install -r requirements.txt
-          if [ "${{ inputs.variant }}" != "sunbrowser_thin_natural" ] && [ "${{ inputs.variant }}" != "sunbrowser_thin_natural_alias_v284a" ] && [ "${{ inputs.variant }}" != "sunbrowser_thin_natural_raw_v284a" ] && [ "${{ inputs.variant }}" != "sunbrowser_thin_natural_envelope_v284a" ]; then
+          if [ "${{ inputs.variant }}" != "sunbrowser_thin_natural" ] && [ "${{ inputs.variant }}" != "sunbrowser_thin_natural_alias_v284a" ] && [ "${{ inputs.variant }}" != "sunbrowser_thin_natural_raw_v284a" ] && [ "${{ inputs.variant }}" != "sunbrowser_thin_natural_envelope_v284a" ] && [ "${{ inputs.variant }}" != "sunbrowser_profile_state_ab_v1" ]; then
             set +e
             python -m cloakbrowser install
             cb_code=$?
@@ -1400,6 +1401,161 @@ jobs:
                 echo "paired_${labels[$i]}_probe_timeout" > "Results/diagnostics/paired_${labels[$i]}_probe_timeout.txt"
               fi
             done
+          elif [ "$variant" = "sunbrowser_profile_state_ab_v1" ]; then
+            if [ "${{ inputs.per_ip_max_registrations }}" -ne 1 ]; then
+              echo "sunbrowser profile-state A/B requires per_ip_max_registrations=1" >&2
+              exit 2
+            fi
+            : > "$private_console"
+            profile_id="ga-state-${GITHUB_RUN_ID}-${{ matrix.attempt }}"
+            base_state="profiles/sunbrowser-state-ab/base"
+            warmed_state="profiles/sunbrowser-state-ab/warmed"
+            init_provenance="Results/diagnostics/sunbrowser_state_init.provenance.safe.json"
+            prewarm_provenance="Results/diagnostics/sunbrowser_state_prewarm.provenance.safe.json"
+            registration_provenance="Results/diagnostics/sunbrowser_state_registration.provenance.safe.json"
+            init_log="Results/diagnostics/sunbrowser_state_init.log"
+            prewarm_log="Results/diagnostics/sunbrowser_state_prewarm.log"
+            registration_log="Results/diagnostics/sunbrowser_state_registration.log"
+            state_arm="prewarmed_treatment"
+            if [ $(( ${{ matrix.attempt }} % 2 )) -eq 0 ]; then
+              state_arm="pristine_control"
+            fi
+            echo "[SUN_PROFILE_AB] begin arm=$state_arm" | tee -a "$private_console"
+
+            SUNBROWSER_PROFILE_ID="$profile_id" \
+            SUNBROWSER_STATE_ROOT="$base_state" \
+            SUNBROWSER_REUSE_EXISTING_PROFILE=0 \
+            SUNBROWSER_PREWARM_MODE=local_only \
+            SUNBROWSER_PROVENANCE_OUT="$init_provenance" \
+              timeout --foreground 3m ./run_xvfb_sunbrowser_prewarm_1920.sh \
+                >"$init_log" 2>&1
+            init_ec=$?
+            cat "$init_log" >> "$private_console"
+
+            copy_ec=""
+            prewarm_ec=""
+            registration_ec=""
+            if [ "$init_ec" -eq 0 ]; then
+              mkdir -p "$warmed_state"
+              cp -a "$base_state/." "$warmed_state/"
+              copy_ec=$?
+            fi
+            if [ "$init_ec" -eq 0 ] && [ "$copy_ec" -eq 0 ]; then
+              SUNBROWSER_PROFILE_ID="$profile_id" \
+              SUNBROWSER_STATE_ROOT="$warmed_state" \
+              SUNBROWSER_REUSE_EXISTING_PROFILE=1 \
+              SUNBROWSER_PREWARM_MODE=neutral \
+              SUNBROWSER_PREWARM_SETTLE_SECONDS=6 \
+              SUNBROWSER_PROVENANCE_OUT="$prewarm_provenance" \
+                timeout --foreground 4m ./run_xvfb_sunbrowser_prewarm_1920.sh \
+                  >"$prewarm_log" 2>&1
+              prewarm_ec=$?
+              cat "$prewarm_log" >> "$private_console"
+            fi
+
+            ec=$init_ec
+            if [ "$init_ec" -eq 0 ] && [ "$copy_ec" -eq 0 ] && [ "$prewarm_ec" -eq 0 ]; then
+              registration_root="$base_state"
+              if [ "$state_arm" = "prewarmed_treatment" ]; then
+                registration_root="$warmed_state"
+              fi
+              GA_COORDINATOR_SLOT="${{ matrix.attempt }}-state-ab" \
+              SUNBROWSER_PROFILE_ID="$profile_id" \
+              SUNBROWSER_STATE_ROOT="$registration_root" \
+              SUNBROWSER_REUSE_EXISTING_PROFILE=1 \
+              SUNBROWSER_PROVENANCE_OUT="$registration_provenance" \
+                timeout --foreground "${{ inputs.probe_timeout_minutes }}m" \
+                  ./run_xvfb_sunbrowser_natural_1920.sh >"$registration_log" 2>&1
+              registration_ec=$?
+              cat "$registration_log" >> "$private_console"
+              ec=$registration_ec
+              if [ "$registration_ec" = "124" ]; then
+                echo "probe_timeout" > Results/diagnostics/probe_timeout.txt
+              fi
+            else
+              echo "sunbrowser_profile_state_setup_failure" \
+                > Results/diagnostics/sunbrowser_profile_state_setup_failure.txt
+            fi
+
+            STATE_ARM="$state_arm" \
+            INIT_EC="$init_ec" \
+            COPY_EC="$copy_ec" \
+            PREWARM_EC="$prewarm_ec" \
+            REGISTRATION_EC="$registration_ec" \
+            INIT_PROVENANCE="$init_provenance" \
+            PREWARM_PROVENANCE="$prewarm_provenance" \
+            REGISTRATION_PROVENANCE="$registration_provenance" \
+            PREWARM_LOG="$prewarm_log" \
+            python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          def load_json(path):
+              try:
+                  return json.loads(Path(path).read_text(encoding="utf-8"))
+              except Exception:
+                  return {}
+
+          def as_int(value):
+              try:
+                  return int(value)
+              except (TypeError, ValueError):
+                  return None
+
+          init = load_json(os.environ["INIT_PROVENANCE"])
+          prewarm = load_json(os.environ["PREWARM_PROVENANCE"])
+          registration = load_json(os.environ["REGISTRATION_PROVENANCE"])
+          profiles = [row.get("profile") or {} for row in (init, prewarm, registration)]
+          digests = [str(profile.get("bundle_sha256") or "") for profile in profiles]
+          arm = os.environ["STATE_ARM"]
+          expected_state = (
+              profiles[1].get("state_after_run")
+              if arm == "prewarmed_treatment"
+              else profiles[0].get("state_after_run")
+          ) or {}
+          registration_before = profiles[2].get("state_before_launch") or {}
+          cookie_count = None
+          prewarm_log = Path(os.environ["PREWARM_LOG"])
+          if prewarm_log.is_file():
+              for line in prewarm_log.read_text(encoding="utf-8", errors="replace").splitlines():
+                  try:
+                      candidate = json.loads(line)
+                  except Exception:
+                      continue
+                  if candidate.get("status") == "ok" and "microsoft_cookie_count" in candidate:
+                      cookie_count = as_int(candidate.get("microsoft_cookie_count"))
+
+          row = {
+              "policy": "neutral_microsoft_state_ab_v1",
+              "arm": arm,
+              "registration_uses_prewarmed_state": arm == "prewarmed_treatment",
+              "init_exit_code": as_int(os.environ.get("INIT_EC")),
+              "copy_exit_code": as_int(os.environ.get("COPY_EC")),
+              "prewarm_exit_code": as_int(os.environ.get("PREWARM_EC")),
+              "registration_exit_code": as_int(os.environ.get("REGISTRATION_EC")),
+              "prewarm_microsoft_cookie_count": cookie_count,
+              "bundle_match": len(digests) == 3 and bool(digests[0]) and len(set(digests)) == 1,
+              "state_source_match": (
+                  bool(expected_state)
+                  and bool(registration_before)
+                  and all(
+                      expected_state.get(key) == registration_before.get(key)
+                      for key in ("file_count", "total_bytes", "browser_state_marker_count")
+                  )
+              ),
+              "registration_state_before_bytes": as_int(registration_before.get("total_bytes")),
+              "registration_state_before_markers": as_int(
+                  registration_before.get("browser_state_marker_count")
+              ),
+          }
+          Path("Results/diagnostics/sunbrowser_profile_state_ab.json").write_text(
+              json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8"
+          )
+          print(json.dumps(row, ensure_ascii=False))
+          PY
+            echo "[SUN_PROFILE_AB] end arm=$state_arm init=$init_ec copy=${copy_ec:-na} prewarm=${prewarm_ec:-na} registration=${registration_ec:-na}" \
+              | tee -a "$private_console"
           else
             cmd=()
             if [ "$variant" = "semiprotocol_5s_stable" ]; then
@@ -1541,7 +1697,7 @@ jobs:
           fi
           echo "exit_code=$ec" >> "$GITHUB_OUTPUT"
           echo "public_safe_probe_summary:"
-          grep -E "\[PUBLIC_AB\]|outlook_register result=|riskblock|collector_minus1|real final result\|-1|CreateAccount strict success|probe timed out|fresh rechallenge skipped by production policy|fresh rechallenge absolute timeout|fresh rechallenge no progress|fresh rechallenge idle timeout" "$private_console" 2>/dev/null \
+          grep -E "\[PUBLIC_AB\]|\[SUN_PROFILE_AB\]|outlook_register result=|riskblock|collector_minus1|real final result\|-1|CreateAccount strict success|probe timed out|fresh rechallenge skipped by production policy|fresh rechallenge absolute timeout|fresh rechallenge no progress|fresh rechallenge idle timeout" "$private_console" 2>/dev/null \
             | sed -E 's/[[:alnum:]._%+-]+@(outlook|hotmail)\.com/<redacted-email>/g' \
             | tail -40 || true
           # Matrix attempts are allowed to fail individually. The summarize job
@@ -1750,6 +1906,13 @@ jobs:
               except Exception:
                   return {}
 
+          def bounded_int(value, minimum, maximum):
+              try:
+                  parsed = int(value)
+              except (TypeError, ValueError):
+                  return None
+              return parsed if minimum <= parsed <= maximum else None
+
           row = load_json("/tmp/private_classification.json")
           ingest = load_json("Results/diagnostics/outlook_email_ingest.json")
           ads_fetch = load_json("Results/diagnostics/ads_online_fetch.json")
@@ -1758,6 +1921,9 @@ jobs:
           signup_country = load_json("Results/diagnostics/signup_country_policy.json")
           signup_dob = load_json("Results/diagnostics/signup_dob_policy.json")
           email_domain = load_json("Results/diagnostics/email_domain_policy.json")
+          sunbrowser_profile_state = load_json(
+              "Results/diagnostics/sunbrowser_profile_state_ab.json"
+          )
           skipped = Path("Results/diagnostics/egress_skip.txt").exists()
           timed_out = Path("Results/diagnostics/probe_timeout.txt").exists()
           fresh_absolute_timed_out = Path(
@@ -1789,6 +1955,44 @@ jobs:
                   ads_profile_arm = "top_v1"
               elif ads_profile_policy == "round_robin":
                   ads_profile_arm = "round_robin"
+
+          sunbrowser_profile_state_policy = str(
+              sunbrowser_profile_state.get("policy") or ""
+          ) or None
+          if sunbrowser_profile_state_policy not in {
+              None, "neutral_microsoft_state_ab_v1"
+          }:
+              sunbrowser_profile_state_policy = None
+          sunbrowser_profile_state_arm = str(
+              sunbrowser_profile_state.get("arm") or ""
+          ) or None
+          if sunbrowser_profile_state_arm not in {
+              None, "prewarmed_treatment", "pristine_control"
+          }:
+              sunbrowser_profile_state_arm = None
+          sunbrowser_profile_state_init_exit = bounded_int(
+              sunbrowser_profile_state.get("init_exit_code"), 0, 255
+          )
+          sunbrowser_profile_state_copy_exit = bounded_int(
+              sunbrowser_profile_state.get("copy_exit_code"), 0, 255
+          )
+          sunbrowser_profile_state_prewarm_exit = bounded_int(
+              sunbrowser_profile_state.get("prewarm_exit_code"), 0, 255
+          )
+          sunbrowser_profile_state_registration_exit = bounded_int(
+              sunbrowser_profile_state.get("registration_exit_code"), 0, 255
+          )
+          sunbrowser_profile_state_cookie_count = bounded_int(
+              sunbrowser_profile_state.get("prewarm_microsoft_cookie_count"), 0, 1000
+          )
+          sunbrowser_profile_state_before_bytes = bounded_int(
+              sunbrowser_profile_state.get("registration_state_before_bytes"),
+              0,
+              100_000_000,
+          )
+          sunbrowser_profile_state_before_markers = bounded_int(
+              sunbrowser_profile_state.get("registration_state_before_markers"), 0, 20
+          )
           try:
               ads_profile_selected_index = int(ads_fetch["selected_index"])
               ads_profile_source_slot = int(ads_fetch["profile_source_slot"])
@@ -2120,6 +2324,26 @@ jobs:
               "ads_profile_selected_index": ads_profile_selected_index,
               "ads_profile_source_slot": ads_profile_source_slot,
               "ads_template_sha256": ads_template_sha256,
+              "sunbrowser_profile_state_policy": sunbrowser_profile_state_policy,
+              "sunbrowser_profile_state_arm": sunbrowser_profile_state_arm,
+              "sunbrowser_profile_state_uses_prewarmed": (
+                  sunbrowser_profile_state.get("registration_uses_prewarmed_state") is True
+              ),
+              "sunbrowser_profile_state_init_exit_code": sunbrowser_profile_state_init_exit,
+              "sunbrowser_profile_state_copy_exit_code": sunbrowser_profile_state_copy_exit,
+              "sunbrowser_profile_state_prewarm_exit_code": sunbrowser_profile_state_prewarm_exit,
+              "sunbrowser_profile_state_registration_exit_code": (
+                  sunbrowser_profile_state_registration_exit
+              ),
+              "sunbrowser_profile_state_cookie_count": sunbrowser_profile_state_cookie_count,
+              "sunbrowser_profile_state_bundle_match": (
+                  sunbrowser_profile_state.get("bundle_match") is True
+              ),
+              "sunbrowser_profile_state_source_match": (
+                  sunbrowser_profile_state.get("state_source_match") is True
+              ),
+              "sunbrowser_profile_state_before_bytes": sunbrowser_profile_state_before_bytes,
+              "sunbrowser_profile_state_before_markers": sunbrowser_profile_state_before_markers,
               "fresh_session_restart_policy": fresh_session_restart_policy,
               "fresh_session_restart_arm": fresh_session_restart_arm,
               "fresh_session_restart_attempted": fresh_session_restart_attempted,
