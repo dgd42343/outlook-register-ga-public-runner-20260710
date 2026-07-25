@@ -1072,6 +1072,126 @@ jobs:
           echo "coordinator_wait_ms=$wait_ms slot=$GA_SLOT"
           python3 -c 'import sys,time; time.sleep(max(0,int(sys.argv[1]))/1000)' "$wait_ms"
 
+      - name: Prepare SunBrowser profile state A-B
+        if: ${{ inputs.variant == 'sunbrowser_profile_state_ab_v1' && steps.egress.outputs.should_probe != 'false' }}
+        shell: bash
+        env:
+          STATE_SLOT: ${{ matrix.attempt }}
+          PER_IP_MAX_REGISTRATIONS: ${{ inputs.per_ip_max_registrations }}
+        run: |
+          set +e
+          mkdir -p Results/diagnostics
+          if [ "$PER_IP_MAX_REGISTRATIONS" -ne 1 ]; then
+            echo "sunbrowser profile-state A/B requires per_ip_max_registrations=1" >&2
+            exit 2
+          fi
+          profile_id="ga-state-${GITHUB_RUN_ID}-${STATE_SLOT}"
+          base_state="profiles/sunbrowser-state-ab/base"
+          warmed_state="profiles/sunbrowser-state-ab/warmed"
+          init_provenance="Results/diagnostics/sunbrowser_state_init.provenance.safe.json"
+          prewarm_provenance="Results/diagnostics/sunbrowser_state_prewarm.provenance.safe.json"
+          registration_provenance="Results/diagnostics/sunbrowser_state_registration.provenance.safe.json"
+          init_log="Results/diagnostics/sunbrowser_state_init.log"
+          prewarm_log="Results/diagnostics/sunbrowser_state_prewarm.log"
+          state_arm="prewarmed_treatment"
+          if [ $(( STATE_SLOT % 2 )) -eq 0 ]; then
+            state_arm="pristine_control"
+          fi
+          echo "[SUN_PROFILE_AB] prepare begin arm=$state_arm"
+
+          SUNBROWSER_PROFILE_ID="$profile_id" \
+          SUNBROWSER_STATE_ROOT="$base_state" \
+          SUNBROWSER_REUSE_EXISTING_PROFILE=0 \
+          SUNBROWSER_PREWARM_MODE=local_only \
+          SUNBROWSER_PROVENANCE_OUT="$init_provenance" \
+            timeout --foreground 3m ./run_xvfb_sunbrowser_prewarm_1920.sh \
+              >"$init_log" 2>&1
+          init_ec=$?
+          tail -30 "$init_log" || true
+
+          copy_ec=""
+          prewarm_ec=""
+          if [ "$init_ec" -eq 0 ]; then
+            mkdir -p "$warmed_state"
+            cp -a "$base_state/." "$warmed_state/"
+            copy_ec=$?
+          fi
+          if [ "$init_ec" -eq 0 ] && [ "$copy_ec" -eq 0 ]; then
+            SUNBROWSER_PROFILE_ID="$profile_id" \
+            SUNBROWSER_STATE_ROOT="$warmed_state" \
+            SUNBROWSER_REUSE_EXISTING_PROFILE=1 \
+            SUNBROWSER_PREWARM_MODE=neutral \
+            SUNBROWSER_PREWARM_SETTLE_SECONDS=6 \
+            SUNBROWSER_PROVENANCE_OUT="$prewarm_provenance" \
+              timeout --foreground 4m ./run_xvfb_sunbrowser_prewarm_1920.sh \
+                >"$prewarm_log" 2>&1
+            prewarm_ec=$?
+            tail -30 "$prewarm_log" || true
+          fi
+
+          setup_ok=false
+          registration_root="$base_state"
+          if [ "$state_arm" = "prewarmed_treatment" ]; then
+            registration_root="$warmed_state"
+          fi
+          if [ "$init_ec" -eq 0 ] && [ "$copy_ec" -eq 0 ] && [ "$prewarm_ec" -eq 0 ]; then
+            setup_ok=true
+          else
+            echo "sunbrowser_profile_state_setup_failure" \
+              > Results/diagnostics/sunbrowser_profile_state_setup_failure.txt
+          fi
+          {
+            echo "SUNBROWSER_PROFILE_ID=$profile_id"
+            echo "SUNBROWSER_STATE_ROOT=$registration_root"
+            echo "SUNBROWSER_REUSE_EXISTING_PROFILE=1"
+            echo "SUNBROWSER_PROVENANCE_OUT=$registration_provenance"
+            echo "SUNBROWSER_PROFILE_STATE_ARM=$state_arm"
+            echo "SUNBROWSER_PROFILE_STATE_SETUP_OK=$setup_ok"
+          } >> "$GITHUB_ENV"
+
+          STATE_ARM="$state_arm" \
+          INIT_EC="$init_ec" \
+          COPY_EC="$copy_ec" \
+          PREWARM_EC="$prewarm_ec" \
+          PREWARM_LOG="$prewarm_log" \
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          def as_int(value):
+              try:
+                  return int(value)
+              except (TypeError, ValueError):
+                  return None
+
+          cookie_count = None
+          log = Path(os.environ["PREWARM_LOG"])
+          if log.is_file():
+              for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
+                  try:
+                      candidate = json.loads(line)
+                  except Exception:
+                      continue
+                  if candidate.get("status") == "ok" and "microsoft_cookie_count" in candidate:
+                      cookie_count = as_int(candidate.get("microsoft_cookie_count"))
+          arm = os.environ["STATE_ARM"]
+          row = {
+              "policy": "neutral_microsoft_state_ab_v1",
+              "arm": arm,
+              "registration_uses_prewarmed_state": arm == "prewarmed_treatment",
+              "init_exit_code": as_int(os.environ.get("INIT_EC")),
+              "copy_exit_code": as_int(os.environ.get("COPY_EC")),
+              "prewarm_exit_code": as_int(os.environ.get("PREWARM_EC")),
+              "prewarm_microsoft_cookie_count": cookie_count,
+          }
+          Path("Results/diagnostics/sunbrowser_profile_state_ab.json").write_text(
+              json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8"
+          )
+          print(json.dumps(row, ensure_ascii=False))
+          PY
+          echo "[SUN_PROFILE_AB] prepare end arm=$state_arm init=$init_ec copy=${copy_ec:-na} prewarm=${prewarm_ec:-na} setup_ok=$setup_ok"
+
       - name: Run no-proxy live probe on GA own IP
         if: ${{ steps.egress.outputs.should_probe != 'false' }}
         id: live
@@ -1401,166 +1521,11 @@ jobs:
                 echo "paired_${labels[$i]}_probe_timeout" > "Results/diagnostics/paired_${labels[$i]}_probe_timeout.txt"
               fi
             done
-          elif [ "$variant" = "sunbrowser_profile_state_ab_v1" ]; then
-            if [ "${{ inputs.per_ip_max_registrations }}" -ne 1 ]; then
-              echo "sunbrowser profile-state A/B requires per_ip_max_registrations=1" >&2
-              exit 2
-            fi
-            : > "$private_console"
-            profile_id="ga-state-${GITHUB_RUN_ID}-${{ matrix.attempt }}"
-            base_state="profiles/sunbrowser-state-ab/base"
-            warmed_state="profiles/sunbrowser-state-ab/warmed"
-            init_provenance="Results/diagnostics/sunbrowser_state_init.provenance.safe.json"
-            prewarm_provenance="Results/diagnostics/sunbrowser_state_prewarm.provenance.safe.json"
-            registration_provenance="Results/diagnostics/sunbrowser_state_registration.provenance.safe.json"
-            init_log="Results/diagnostics/sunbrowser_state_init.log"
-            prewarm_log="Results/diagnostics/sunbrowser_state_prewarm.log"
-            registration_log="Results/diagnostics/sunbrowser_state_registration.log"
-            state_arm="prewarmed_treatment"
-            if [ $(( ${{ matrix.attempt }} % 2 )) -eq 0 ]; then
-              state_arm="pristine_control"
-            fi
-            echo "[SUN_PROFILE_AB] begin arm=$state_arm" | tee -a "$private_console"
-
-            SUNBROWSER_PROFILE_ID="$profile_id" \
-            SUNBROWSER_STATE_ROOT="$base_state" \
-            SUNBROWSER_REUSE_EXISTING_PROFILE=0 \
-            SUNBROWSER_PREWARM_MODE=local_only \
-            SUNBROWSER_PROVENANCE_OUT="$init_provenance" \
-              timeout --foreground 3m ./run_xvfb_sunbrowser_prewarm_1920.sh \
-                >"$init_log" 2>&1
-            init_ec=$?
-            cat "$init_log" >> "$private_console"
-
-            copy_ec=""
-            prewarm_ec=""
-            registration_ec=""
-            if [ "$init_ec" -eq 0 ]; then
-              mkdir -p "$warmed_state"
-              cp -a "$base_state/." "$warmed_state/"
-              copy_ec=$?
-            fi
-            if [ "$init_ec" -eq 0 ] && [ "$copy_ec" -eq 0 ]; then
-              SUNBROWSER_PROFILE_ID="$profile_id" \
-              SUNBROWSER_STATE_ROOT="$warmed_state" \
-              SUNBROWSER_REUSE_EXISTING_PROFILE=1 \
-              SUNBROWSER_PREWARM_MODE=neutral \
-              SUNBROWSER_PREWARM_SETTLE_SECONDS=6 \
-              SUNBROWSER_PROVENANCE_OUT="$prewarm_provenance" \
-                timeout --foreground 4m ./run_xvfb_sunbrowser_prewarm_1920.sh \
-                  >"$prewarm_log" 2>&1
-              prewarm_ec=$?
-              cat "$prewarm_log" >> "$private_console"
-            fi
-
-            ec=$init_ec
-            if [ "$init_ec" -eq 0 ] && [ "$copy_ec" -eq 0 ] && [ "$prewarm_ec" -eq 0 ]; then
-              registration_root="$base_state"
-              if [ "$state_arm" = "prewarmed_treatment" ]; then
-                registration_root="$warmed_state"
-              fi
-              GA_COORDINATOR_SLOT="${{ matrix.attempt }}-state-ab" \
-              SUNBROWSER_PROFILE_ID="$profile_id" \
-              SUNBROWSER_STATE_ROOT="$registration_root" \
-              SUNBROWSER_REUSE_EXISTING_PROFILE=1 \
-              SUNBROWSER_PROVENANCE_OUT="$registration_provenance" \
-                timeout --foreground "${{ inputs.probe_timeout_minutes }}m" \
-                  ./run_xvfb_sunbrowser_natural_1920.sh >"$registration_log" 2>&1
-              registration_ec=$?
-              cat "$registration_log" >> "$private_console"
-              ec=$registration_ec
-              if [ "$registration_ec" = "124" ]; then
-                echo "probe_timeout" > Results/diagnostics/probe_timeout.txt
-              fi
-            else
-              echo "sunbrowser_profile_state_setup_failure" \
-                > Results/diagnostics/sunbrowser_profile_state_setup_failure.txt
-            fi
-
-            STATE_ARM="$state_arm" \
-            INIT_EC="$init_ec" \
-            COPY_EC="$copy_ec" \
-            PREWARM_EC="$prewarm_ec" \
-            REGISTRATION_EC="$registration_ec" \
-            INIT_PROVENANCE="$init_provenance" \
-            PREWARM_PROVENANCE="$prewarm_provenance" \
-            REGISTRATION_PROVENANCE="$registration_provenance" \
-            PREWARM_LOG="$prewarm_log" \
-            python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          def load_json(path):
-              try:
-                  return json.loads(Path(path).read_text(encoding="utf-8"))
-              except Exception:
-                  return {}
-
-          def as_int(value):
-              try:
-                  return int(value)
-              except (TypeError, ValueError):
-                  return None
-
-          init = load_json(os.environ["INIT_PROVENANCE"])
-          prewarm = load_json(os.environ["PREWARM_PROVENANCE"])
-          registration = load_json(os.environ["REGISTRATION_PROVENANCE"])
-          profiles = [row.get("profile") or {} for row in (init, prewarm, registration)]
-          digests = [str(profile.get("bundle_sha256") or "") for profile in profiles]
-          arm = os.environ["STATE_ARM"]
-          expected_state = (
-              profiles[1].get("state_after_run")
-              if arm == "prewarmed_treatment"
-              else profiles[0].get("state_after_run")
-          ) or {}
-          registration_before = profiles[2].get("state_before_launch") or {}
-          cookie_count = None
-          prewarm_log = Path(os.environ["PREWARM_LOG"])
-          if prewarm_log.is_file():
-              for line in prewarm_log.read_text(encoding="utf-8", errors="replace").splitlines():
-                  try:
-                      candidate = json.loads(line)
-                  except Exception:
-                      continue
-                  if candidate.get("status") == "ok" and "microsoft_cookie_count" in candidate:
-                      cookie_count = as_int(candidate.get("microsoft_cookie_count"))
-
-          row = {
-              "policy": "neutral_microsoft_state_ab_v1",
-              "arm": arm,
-              "registration_uses_prewarmed_state": arm == "prewarmed_treatment",
-              "init_exit_code": as_int(os.environ.get("INIT_EC")),
-              "copy_exit_code": as_int(os.environ.get("COPY_EC")),
-              "prewarm_exit_code": as_int(os.environ.get("PREWARM_EC")),
-              "registration_exit_code": as_int(os.environ.get("REGISTRATION_EC")),
-              "prewarm_microsoft_cookie_count": cookie_count,
-              "bundle_match": len(digests) == 3 and bool(digests[0]) and len(set(digests)) == 1,
-              "state_source_match": (
-                  bool(expected_state)
-                  and bool(registration_before)
-                  and all(
-                      expected_state.get(key) == registration_before.get(key)
-                      for key in ("file_count", "total_bytes", "browser_state_marker_count")
-                  )
-              ),
-              "registration_state_before_bytes": as_int(registration_before.get("total_bytes")),
-              "registration_state_before_markers": as_int(
-                  registration_before.get("browser_state_marker_count")
-              ),
-          }
-          Path("Results/diagnostics/sunbrowser_profile_state_ab.json").write_text(
-              json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8"
-          )
-          print(json.dumps(row, ensure_ascii=False))
-          PY
-            echo "[SUN_PROFILE_AB] end arm=$state_arm init=$init_ec copy=${copy_ec:-na} prewarm=${prewarm_ec:-na} registration=${registration_ec:-na}" \
-              | tee -a "$private_console"
           else
             cmd=()
             if [ "$variant" = "semiprotocol_5s_stable" ]; then
               cmd=(./run_xvfb_semiprotocol_5s_1920.sh)
-            elif [ "$variant" = "sunbrowser_thin_natural" ] || [ "$variant" = "sunbrowser_thin_natural_alias_v284a" ] || [ "$variant" = "sunbrowser_thin_natural_raw_v284a" ] || [ "$variant" = "sunbrowser_thin_natural_envelope_v284a" ]; then
+            elif [ "$variant" = "sunbrowser_thin_natural" ] || [ "$variant" = "sunbrowser_thin_natural_alias_v284a" ] || [ "$variant" = "sunbrowser_thin_natural_raw_v284a" ] || [ "$variant" = "sunbrowser_thin_natural_envelope_v284a" ] || [ "$variant" = "sunbrowser_profile_state_ab_v1" ]; then
               cmd=(./run_xvfb_sunbrowser_natural_1920.sh)
             elif [ "$variant" = "semiprotocol_5s_historical_firstpass" ]; then
               cmd=(./run_xvfb_semiprotocol_5s_historical_firstpass_1920.sh)
@@ -1583,7 +1548,10 @@ jobs:
             else
               cmd=(./run_xvfb_natural_1920.sh)
             fi
-            if [ "${{ inputs.per_ip_max_registrations }}" -gt 1 ]; then
+            if [ "$variant" = "sunbrowser_profile_state_ab_v1" ] && [ "${SUNBROWSER_PROFILE_STATE_SETUP_OK:-false}" != "true" ]; then
+              echo "[SUN_PROFILE_AB] registration skipped because setup failed" > "$private_console"
+              ec=2
+            elif [ "${{ inputs.per_ip_max_registrations }}" -gt 1 ]; then
               python3 tools/run_ga_ip_capacity_loop.py \
                 --variant "$variant" \
                 --max-registrations "${{ inputs.per_ip_max_registrations }}" \
@@ -1704,6 +1672,72 @@ jobs:
           # evaluates redacted per-slot verdicts and rejects technical failures
           # or an all-IP-blocked run with no decisive non-IP checkpoint.
           exit 0
+
+      - name: Finalize SunBrowser profile state A-B evidence
+        if: ${{ always() && inputs.variant == 'sunbrowser_profile_state_ab_v1' && steps.egress.outputs.should_probe != 'false' }}
+        shell: bash
+        env:
+          REGISTRATION_EC: ${{ steps.live.outputs.exit_code }}
+        run: |
+          set +e
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          def load_json(path):
+              try:
+                  return json.loads(Path(path).read_text(encoding="utf-8"))
+              except Exception:
+                  return {}
+
+          def as_int(value):
+              try:
+                  return int(value)
+              except (TypeError, ValueError):
+                  return None
+
+          result_path = Path("Results/diagnostics/sunbrowser_profile_state_ab.json")
+          row = load_json(result_path)
+          init = load_json("Results/diagnostics/sunbrowser_state_init.provenance.safe.json")
+          prewarm = load_json("Results/diagnostics/sunbrowser_state_prewarm.provenance.safe.json")
+          registration = load_json(
+              "Results/diagnostics/sunbrowser_state_registration.provenance.safe.json"
+          )
+          profiles = [item.get("profile") or {} for item in (init, prewarm, registration)]
+          digests = [str(profile.get("bundle_sha256") or "") for profile in profiles]
+          arm = row.get("arm")
+          expected_state = (
+              profiles[1].get("state_after_run")
+              if arm == "prewarmed_treatment"
+              else profiles[0].get("state_after_run")
+          ) or {}
+          registration_before = profiles[2].get("state_before_launch") or {}
+          row.update({
+              "registration_exit_code": as_int(os.environ.get("REGISTRATION_EC")),
+              "bundle_match": (
+                  len(digests) == 3 and bool(digests[0]) and len(set(digests)) == 1
+              ),
+              "state_source_match": (
+                  bool(expected_state)
+                  and bool(registration_before)
+                  and all(
+                      expected_state.get(key) == registration_before.get(key)
+                      for key in ("file_count", "total_bytes", "browser_state_marker_count")
+                  )
+              ),
+              "registration_state_before_bytes": as_int(
+                  registration_before.get("total_bytes")
+              ),
+              "registration_state_before_markers": as_int(
+                  registration_before.get("browser_state_marker_count")
+              ),
+          })
+          result_path.write_text(
+              json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8"
+          )
+          print(json.dumps(row, ensure_ascii=False))
+          PY
 
       - name: Summarize attempt without publishing credentials
         if: ${{ always() }}
