@@ -61,6 +61,7 @@ on:
           - sunbrowser_profile_state_ab_v1
           - sunbrowser_webgl_integrity_ab_v1
           - sunbrowser_hardware_template_ab_v1
+          - sunbrowser_fresh_completion_ab_v1
           - semiprotocol_5s_historical_firstpass
           - semiprotocol_5s_histfp_no_inject_knp
           - release_5s_success_baseline
@@ -212,7 +213,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.variant == 'sunbrowser_hardware_template_ab_v1' && '63d36038928a364d4263049dd1a9a184e4552409' || inputs.variant == 'sunbrowser_webgl_integrity_ab_v1' && '64b9ca34ee7ce95407a22cf7e6c36562185eb077' || inputs.variant == 'sunbrowser_profile_state_ab_v1' && '73d4cffbbb31322f254903cb83890e4179a4b589' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' && '77ed97ba2e15e4bf107e88a2e8c7a88e0aadef40' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' && '31e5d63efa879f753a71e0ac820c2bedfad376a1' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' && '2df4a7f25cd9c971b5ffba81174f7889432a2e77' || inputs.variant == 'sunbrowser_thin_natural' && '0f7a8643cf2ec6232f797e041f0cd79427bf38b9' || inputs.variant == 'historical_ga_success_default' && 'f8c9c0ea377a08b4c5c10a05c0558cda85d5a01a' || inputs.variant == 'historical_ga_highrate_336a973' && '336a97312e3e89219ad6179b196bfa99239cb13e' || inputs.variant == 'historical_ga_fresh_rechallenge' && '96787a7561f5e4b8786c2fda9cf3f8f1da0035bf' || inputs.variant == 'online_ads_ga_fresh_rechallenge' && '31dfe0e28e5da13645a455dba6737c19346faf63' || inputs.variant == 'online_ads_ga_production_fast_fail' && '875b0571d5b9c88b89a5bbc64f30488ee9565962' || inputs.variant == 'online_ads_ga_fresh_5s_recovery' && 'ae0745a95f73bec3ab24b9a5ce461bae1fa4a371' || inputs.variant == 'online_ads_ga_5s_hold_transplant' && '01086ae6d319a8bbf019ddb34267edd59ac7ec31' || (inputs.variant == 'release_5s_success_baseline' || inputs.variant == 'release_5s_success_attempt2') && '00b68437e041cbdcee2be209a18d7a5592f4c2dd' || (inputs.variant == 'offline_ads_like_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge') && '0838ef3a52c6eb337b0847762757d282b36b9e5e' || vars.PRIVATE_SOURCE_REF }}
+          ref: ${{ inputs.variant == 'sunbrowser_fresh_completion_ab_v1' && '8416afe01af20fdc9311441624f01a32f0c99684' || inputs.variant == 'sunbrowser_hardware_template_ab_v1' && '63d36038928a364d4263049dd1a9a184e4552409' || inputs.variant == 'sunbrowser_webgl_integrity_ab_v1' && '64b9ca34ee7ce95407a22cf7e6c36562185eb077' || inputs.variant == 'sunbrowser_profile_state_ab_v1' && '73d4cffbbb31322f254903cb83890e4179a4b589' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' && '77ed97ba2e15e4bf107e88a2e8c7a88e0aadef40' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' && '31e5d63efa879f753a71e0ac820c2bedfad376a1' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' && '2df4a7f25cd9c971b5ffba81174f7889432a2e77' || inputs.variant == 'sunbrowser_thin_natural' && '0f7a8643cf2ec6232f797e041f0cd79427bf38b9' || inputs.variant == 'historical_ga_success_default' && 'f8c9c0ea377a08b4c5c10a05c0558cda85d5a01a' || inputs.variant == 'historical_ga_highrate_336a973' && '336a97312e3e89219ad6179b196bfa99239cb13e' || inputs.variant == 'historical_ga_fresh_rechallenge' && '96787a7561f5e4b8786c2fda9cf3f8f1da0035bf' || inputs.variant == 'online_ads_ga_fresh_rechallenge' && '31dfe0e28e5da13645a455dba6737c19346faf63' || inputs.variant == 'online_ads_ga_production_fast_fail' && '875b0571d5b9c88b89a5bbc64f30488ee9565962' || inputs.variant == 'online_ads_ga_fresh_5s_recovery' && 'ae0745a95f73bec3ab24b9a5ce461bae1fa4a371' || inputs.variant == 'online_ads_ga_5s_hold_transplant' && '01086ae6d319a8bbf019ddb34267edd59ac7ec31' || (inputs.variant == 'release_5s_success_baseline' || inputs.variant == 'release_5s_success_attempt2') && '00b68437e041cbdcee2be209a18d7a5592f4c2dd' || (inputs.variant == 'offline_ads_like_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge') && '0838ef3a52c6eb337b0847762757d282b36b9e5e' || vars.PRIVATE_SOURCE_REF }}
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
           clean: true
@@ -554,7 +555,7 @@ jobs:
           fc-match 'Calibri' | head -1
 
       - name: Install pinned SunBrowser LocalFP runtime
-        if: ${{ steps.egress.outputs.should_probe != 'false' && (inputs.variant == 'sunbrowser_thin_natural' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' || inputs.variant == 'sunbrowser_profile_state_ab_v1' || inputs.variant == 'sunbrowser_webgl_integrity_ab_v1' || inputs.variant == 'sunbrowser_hardware_template_ab_v1') }}
+        if: ${{ steps.egress.outputs.should_probe != 'false' && (inputs.variant == 'sunbrowser_thin_natural' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' || inputs.variant == 'sunbrowser_profile_state_ab_v1' || inputs.variant == 'sunbrowser_webgl_integrity_ab_v1' || inputs.variant == 'sunbrowser_hardware_template_ab_v1' || inputs.variant == 'sunbrowser_fresh_completion_ab_v1') }}
         shell: bash
         env:
           NETWORK_MODE_INPUT: ${{ inputs.network_mode }}
@@ -611,7 +612,7 @@ jobs:
           . .venv/bin/activate
           python -m pip install --upgrade pip wheel setuptools
           pip install -r requirements.txt
-          if [ "${{ inputs.variant }}" != "sunbrowser_thin_natural" ] && [ "${{ inputs.variant }}" != "sunbrowser_thin_natural_alias_v284a" ] && [ "${{ inputs.variant }}" != "sunbrowser_thin_natural_raw_v284a" ] && [ "${{ inputs.variant }}" != "sunbrowser_thin_natural_envelope_v284a" ] && [ "${{ inputs.variant }}" != "sunbrowser_profile_state_ab_v1" ] && [ "${{ inputs.variant }}" != "sunbrowser_webgl_integrity_ab_v1" ] && [ "${{ inputs.variant }}" != "sunbrowser_hardware_template_ab_v1" ]; then
+          if [ "${{ inputs.variant }}" != "sunbrowser_thin_natural" ] && [ "${{ inputs.variant }}" != "sunbrowser_thin_natural_alias_v284a" ] && [ "${{ inputs.variant }}" != "sunbrowser_thin_natural_raw_v284a" ] && [ "${{ inputs.variant }}" != "sunbrowser_thin_natural_envelope_v284a" ] && [ "${{ inputs.variant }}" != "sunbrowser_profile_state_ab_v1" ] && [ "${{ inputs.variant }}" != "sunbrowser_webgl_integrity_ab_v1" ] && [ "${{ inputs.variant }}" != "sunbrowser_hardware_template_ab_v1" ] && [ "${{ inputs.variant }}" != "sunbrowser_fresh_completion_ab_v1" ]; then
             set +e
             python -m cloakbrowser install
             cb_code=$?
@@ -1374,6 +1375,77 @@ jobs:
           PY
           echo "[SUN_HW_AB] arm=$hw_arm rank=$assignment_rank/$assignment_total"
 
+      - name: Prepare SunBrowser fresh completion A-B
+        if: ${{ inputs.variant == 'sunbrowser_fresh_completion_ab_v1' }}
+        shell: bash
+        env:
+          FRESH_SLOT: ${{ matrix.attempt }}
+          FRESH_SLOTS_JSON: ${{ inputs.node_slots_json }}
+          FRESH_ASSIGNMENT_SEED: ${{ inputs.orchestration_id }}
+          PER_IP_MAX_REGISTRATIONS: ${{ inputs.per_ip_max_registrations }}
+        run: |
+          set -euo pipefail
+          mkdir -p Results/diagnostics
+          if [ "$PER_IP_MAX_REGISTRATIONS" -ne 1 ]; then
+            echo "sunbrowser fresh completion A/B requires per_ip_max_registrations=1" >&2
+            exit 2
+          fi
+          assignment=$(python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+
+          slots = [str(item) for item in json.loads(os.environ["FRESH_SLOTS_JSON"])]
+          current = str(os.environ["FRESH_SLOT"])
+          seed = os.environ.get("FRESH_ASSIGNMENT_SEED") or os.environ["GITHUB_RUN_ID"]
+          ranked = sorted(
+              slots,
+              key=lambda slot: hashlib.sha256(f"{seed}:{slot}".encode()).digest(),
+          )
+          if current not in ranked:
+              raise SystemExit(f"matrix slot {current!r} missing from FRESH_SLOTS_JSON")
+          rank = ranked.index(current) + 1
+          treatment_count = (len(ranked) + 1) // 2
+          arm = "deadline90_treatment" if rank <= treatment_count else "deadline60_control"
+          deadline_seconds = 90 if arm == "deadline90_treatment" else 60
+          seed_sha = hashlib.sha256(seed.encode()).hexdigest()[:12]
+          print(f"{arm}\t{deadline_seconds}\t{rank}\t{len(ranked)}\t{seed_sha}")
+          PY
+          )
+          IFS=$'\t' read -r fresh_arm deadline_seconds assignment_rank assignment_total assignment_seed_sha <<<"$assignment"
+          test -n "$fresh_arm"
+          {
+            echo "SUNBROWSER_FRESH_DEADLINE_SECONDS=$deadline_seconds"
+            echo "OUTLOOK_SIGNUP_PROTOCOL_TAKEOVER_FRESH_HOLD_RETRIES=1"
+            echo "OUTLOOK_SIGNUP_PROTOCOL_TAKEOVER_FRESH_RECHALLENGE_ROUNDS=1"
+          } >> "$GITHUB_ENV"
+          FRESH_ARM="$fresh_arm" \
+          DEADLINE_SECONDS="$deadline_seconds" \
+          ASSIGNMENT_RANK="$assignment_rank" \
+          ASSIGNMENT_TOTAL="$assignment_total" \
+          ASSIGNMENT_SEED_SHA="$assignment_seed_sha" \
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          row = {
+              "policy": "fresh_single_hold_deadline60_90_ab_v1_balanced_hash",
+              "arm": os.environ["FRESH_ARM"],
+              "assignment_rank": int(os.environ["ASSIGNMENT_RANK"]),
+              "assignment_total": int(os.environ["ASSIGNMENT_TOTAL"]),
+              "assignment_seed_sha256_12": os.environ["ASSIGNMENT_SEED_SHA"],
+              "deadline_seconds": int(os.environ["DEADLINE_SECONDS"]),
+              "fresh_hold_retries": 1,
+              "fresh_rounds": 1,
+          }
+          Path("Results/diagnostics/sunbrowser_fresh_completion_ab.json").write_text(
+              json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8"
+          )
+          print(json.dumps(row, ensure_ascii=False))
+          PY
+          echo "[SUN_FRESH_AB] arm=$fresh_arm deadline_seconds=$deadline_seconds rank=$assignment_rank/$assignment_total"
+
       - name: Run no-proxy live probe on GA own IP
         if: ${{ steps.egress.outputs.should_probe != 'false' }}
         id: live
@@ -1385,11 +1457,15 @@ jobs:
           SIGNUP_DOB_POLICY: ${{ inputs.signup_dob_policy }}
           EMAIL_DOMAIN_POLICY: ${{ inputs.email_domain_policy }}
           OUTLOOK_SIGNUP_PROTOCOL_TAKEOVER_FRESH_ABSOLUTE_TIMEOUT_SECONDS: ${{ inputs.fresh_absolute_timeout_seconds }}
-          OUTLOOK_SIGNUP_PROTOCOL_TAKEOVER_FRESH_RECHALLENGE_ROUNDS: ${{ inputs.variant == 'online_ads_ga_production_fast_fail' && '0' || '' }}
+          OUTLOOK_SIGNUP_PROTOCOL_TAKEOVER_FRESH_RECHALLENGE_ROUNDS: ${{ inputs.variant == 'sunbrowser_fresh_completion_ab_v1' && '1' || inputs.variant == 'online_ads_ga_production_fast_fail' && '0' || '' }}
+          OUTLOOK_SIGNUP_PROTOCOL_TAKEOVER_FRESH_HOLD_RETRIES: ${{ inputs.variant == 'sunbrowser_fresh_completion_ab_v1' && '1' || '' }}
           FRESH_SESSION_RESTART_POLICY: ${{ inputs.fresh_session_restart_policy }}
         run: |
           set +e
           mkdir -p Results/diagnostics
+          if [ "${{ inputs.variant }}" = "sunbrowser_fresh_completion_ab_v1" ]; then
+            export OUTLOOK_SIGNUP_PROTOCOL_TAKEOVER_FRESH_ABSOLUTE_TIMEOUT_SECONDS="${SUNBROWSER_FRESH_DEADLINE_SECONDS}"
+          fi
           warmup_policy="$PRE_FIRST_HOLD_WARMUP_POLICY"
           warmup_arm="fixed_input"
           warmup_ms="$PRE_FIRST_HOLD_WARMUP_INPUT_MS"
@@ -1707,7 +1783,7 @@ jobs:
             cmd=()
             if [ "$variant" = "semiprotocol_5s_stable" ]; then
               cmd=(./run_xvfb_semiprotocol_5s_1920.sh)
-            elif [ "$variant" = "sunbrowser_thin_natural" ] || [ "$variant" = "sunbrowser_thin_natural_alias_v284a" ] || [ "$variant" = "sunbrowser_thin_natural_raw_v284a" ] || [ "$variant" = "sunbrowser_thin_natural_envelope_v284a" ] || [ "$variant" = "sunbrowser_profile_state_ab_v1" ] || [ "$variant" = "sunbrowser_webgl_integrity_ab_v1" ] || [ "$variant" = "sunbrowser_hardware_template_ab_v1" ]; then
+            elif [ "$variant" = "sunbrowser_thin_natural" ] || [ "$variant" = "sunbrowser_thin_natural_alias_v284a" ] || [ "$variant" = "sunbrowser_thin_natural_raw_v284a" ] || [ "$variant" = "sunbrowser_thin_natural_envelope_v284a" ] || [ "$variant" = "sunbrowser_profile_state_ab_v1" ] || [ "$variant" = "sunbrowser_webgl_integrity_ab_v1" ] || [ "$variant" = "sunbrowser_hardware_template_ab_v1" ] || [ "$variant" = "sunbrowser_fresh_completion_ab_v1" ]; then
               cmd=(./run_xvfb_sunbrowser_natural_1920.sh)
             elif [ "$variant" = "semiprotocol_5s_historical_firstpass" ]; then
               cmd=(./run_xvfb_semiprotocol_5s_historical_firstpass_1920.sh)
@@ -2217,6 +2293,9 @@ jobs:
           sunbrowser_hardware_provenance = load_json(
               "Results/diagnostics/sunbrowser_hardware_registration.provenance.safe.json"
           )
+          sunbrowser_fresh = load_json(
+              "Results/diagnostics/sunbrowser_fresh_completion_ab.json"
+          )
           skipped = Path("Results/diagnostics/egress_skip.txt").exists()
           timed_out = Path("Results/diagnostics/probe_timeout.txt").exists()
           fresh_absolute_timed_out = Path(
@@ -2403,6 +2482,40 @@ jobs:
               sunbrowser_hardware_template_policy = None
           sunbrowser_hardware_generation_attempt_count = bounded_int(
               hardware_profile.get("generation_attempt_count"), 0, 16
+          )
+          sunbrowser_fresh_policy = str(
+              sunbrowser_fresh.get("policy") or ""
+          ) or None
+          if sunbrowser_fresh_policy not in {
+              None, "fresh_single_hold_deadline60_90_ab_v1_balanced_hash"
+          }:
+              sunbrowser_fresh_policy = None
+          sunbrowser_fresh_arm = str(sunbrowser_fresh.get("arm") or "") or None
+          if sunbrowser_fresh_arm not in {
+              None, "deadline90_treatment", "deadline60_control"
+          }:
+              sunbrowser_fresh_arm = None
+          sunbrowser_fresh_assignment_rank = bounded_int(
+              sunbrowser_fresh.get("assignment_rank"), 1, 1000
+          )
+          sunbrowser_fresh_assignment_total = bounded_int(
+              sunbrowser_fresh.get("assignment_total"), 1, 1000
+          )
+          sunbrowser_fresh_assignment_seed_sha = str(
+              sunbrowser_fresh.get("assignment_seed_sha256_12") or ""
+          )
+          if not re.fullmatch(
+              r"[0-9a-f]{12}", sunbrowser_fresh_assignment_seed_sha
+          ):
+              sunbrowser_fresh_assignment_seed_sha = None
+          sunbrowser_fresh_deadline_seconds = bounded_int(
+              sunbrowser_fresh.get("deadline_seconds"), 60, 90
+          )
+          sunbrowser_fresh_hold_retries = bounded_int(
+              sunbrowser_fresh.get("fresh_hold_retries"), 1, 1
+          )
+          sunbrowser_fresh_rounds = bounded_int(
+              sunbrowser_fresh.get("fresh_rounds"), 1, 1
           )
           try:
               ads_profile_selected_index = int(ads_fetch["selected_index"])
@@ -2819,6 +2932,18 @@ jobs:
               "sunbrowser_hardware_generation_attempt_count": (
                   sunbrowser_hardware_generation_attempt_count
               ),
+              "sunbrowser_fresh_policy": sunbrowser_fresh_policy,
+              "sunbrowser_fresh_arm": sunbrowser_fresh_arm,
+              "sunbrowser_fresh_assignment_rank": sunbrowser_fresh_assignment_rank,
+              "sunbrowser_fresh_assignment_total": sunbrowser_fresh_assignment_total,
+              "sunbrowser_fresh_assignment_seed_sha256_12": (
+                  sunbrowser_fresh_assignment_seed_sha
+              ),
+              "sunbrowser_fresh_deadline_seconds": (
+                  sunbrowser_fresh_deadline_seconds
+              ),
+              "sunbrowser_fresh_hold_retries": sunbrowser_fresh_hold_retries,
+              "sunbrowser_fresh_rounds": sunbrowser_fresh_rounds,
               "fresh_session_restart_policy": fresh_session_restart_policy,
               "fresh_session_restart_arm": fresh_session_restart_arm,
               "fresh_session_restart_attempted": fresh_session_restart_attempted,
@@ -3001,6 +3126,7 @@ jobs:
           profile_state_ab = None
           webgl_integrity_ab = None
           hardware_template_ab = None
+          fresh_completion_ab = None
           if variant == "sunbrowser_profile_state_ab_v1":
               expected_arms = {"prewarmed_treatment", "pristine_control"}
               arm_counts = Counter(
@@ -3357,6 +3483,122 @@ jobs:
                   else "hardware_template_ab_invalid"
               )
               goal_met = experiment_complete
+          elif variant == "sunbrowser_fresh_completion_ab_v1":
+              expected_arms = {"deadline90_treatment", "deadline60_control"}
+              arm_counts = Counter(
+                  str(row.get("sunbrowser_fresh_arm") or "missing")
+                  for row in rows
+              )
+              assignment_ranks = [
+                  row.get("sunbrowser_fresh_assignment_rank") for row in rows
+              ]
+              assignment_totals = {
+                  row.get("sunbrowser_fresh_assignment_total") for row in rows
+              }
+              assignment_seeds = {
+                  row.get("sunbrowser_fresh_assignment_seed_sha256_12")
+                  for row in rows
+              }
+              assignment_valid = (
+                  expected > 0
+                  and assignment_totals == {expected}
+                  and len(assignment_seeds) == 1
+                  and None not in assignment_seeds
+                  and all(isinstance(rank, int) for rank in assignment_ranks)
+                  and sorted(assignment_ranks) == list(range(1, expected + 1))
+              )
+              balanced = (
+                  set(arm_counts) == expected_arms
+                  and abs(
+                      arm_counts["deadline90_treatment"]
+                      - arm_counts["deadline60_control"]
+                  ) <= 1
+              )
+
+              def fresh_evidence_is_valid(row):
+                  arm = row.get("sunbrowser_fresh_arm")
+                  expected_deadline = (
+                      90 if arm == "deadline90_treatment" else 60
+                  )
+                  return (
+                      row.get("sunbrowser_fresh_policy")
+                      == "fresh_single_hold_deadline60_90_ab_v1_balanced_hash"
+                      and arm in expected_arms
+                      and row.get("sunbrowser_fresh_deadline_seconds")
+                      == expected_deadline
+                      and row.get("sunbrowser_fresh_hold_retries") == 1
+                      and row.get("sunbrowser_fresh_rounds") == 1
+                  )
+
+              evidence_valid = sum(
+                  fresh_evidence_is_valid(row) for row in rows
+              )
+              experiment_complete = (
+                  missing == 0
+                  and len(rows) == expected
+                  and assignment_valid
+                  and balanced
+                  and evidence_valid == expected
+              )
+              by_arm = {}
+              for arm in sorted(expected_arms):
+                  arm_rows = [
+                      row for row in rows
+                      if row.get("sunbrowser_fresh_arm") == arm
+                  ]
+                  live_rows = [
+                      row for row in arm_rows if row.get("category") != "ip_skipped"
+                  ]
+                  accepted_rows = [
+                      row for row in live_rows
+                      if row.get("accepted_result0") is True
+                  ]
+                  by_arm[arm] = {
+                      "candidate": len(arm_rows),
+                      "ip_skipped": len(arm_rows) - len(live_rows),
+                      "live": len(live_rows),
+                      "evidence_valid": sum(
+                          fresh_evidence_is_valid(row) for row in arm_rows
+                      ),
+                      "strict_success": sum(
+                          row.get("strict_success") is True for row in live_rows
+                      ),
+                      "accepted_result0": len(accepted_rows),
+                      "result0_without_strict": sum(
+                          row.get("strict_success") is not True
+                          for row in accepted_rows
+                      ),
+                      "fresh_absolute_timeout": sum(
+                          row.get("fresh_rechallenge_absolute_timed_out") is True
+                          for row in accepted_rows
+                      ),
+                      "collector_minus1": sum(
+                          row.get("reason") == "collector_minus1" for row in live_rows
+                      ),
+                      "explicit_riskblock": sum(
+                          row.get("explicit_riskblock") is True for row in live_rows
+                      ),
+                      "account_lifecycle": dict(sorted(Counter(
+                          str(row.get("account_lifecycle") or "missing")
+                          for row in live_rows
+                      ).items())),
+                      "reasons": dict(sorted(Counter(
+                          str(row.get("reason") or "missing") for row in live_rows
+                      ).items())),
+                  }
+              fresh_completion_ab = {
+                  "experiment_complete": experiment_complete,
+                  "assignment_valid": assignment_valid,
+                  "balanced": balanced,
+                  "evidence_valid": evidence_valid,
+                  "by_arm": by_arm,
+              }
+              conclusion = (
+                  "fresh_completion_ab_complete"
+                  if experiment_complete
+                  else "fresh_completion_ab_invalid"
+              )
+              goal_met = experiment_complete
           elif technical:
               conclusion = "technical_failure"
               goal_met = False
@@ -3388,6 +3630,8 @@ jobs:
               summary["webgl_integrity_ab"] = webgl_integrity_ab
           if hardware_template_ab is not None:
               summary["hardware_template_ab"] = hardware_template_ab
+          if fresh_completion_ab is not None:
+              summary["fresh_completion_ab"] = fresh_completion_ab
           print(json.dumps(summary, ensure_ascii=False, indent=2))
 
           step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
