@@ -75,7 +75,7 @@ on:
       runner:
         description: "Ubuntu runner label for the GA egress pool"
         required: true
-        default: "ubuntu-22.04"
+        default: "ubuntu-24.04"
         type: choice
         options:
           - ubuntu-latest
