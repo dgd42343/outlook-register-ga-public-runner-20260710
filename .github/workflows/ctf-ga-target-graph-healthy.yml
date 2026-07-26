@@ -8,9 +8,9 @@ on:
         required: true
         default: "100"
       batch_slots:
-        description: "Maximum fresh GA slots in one child batch (1-256)"
+        description: "Fresh GA slots per child shard (1-20; shards continue until target/cap)"
         required: true
-        default: "50"
+        default: "20"
       min_batch_slots:
         description: "Minimum adaptive backfill batch after the first batch"
         required: true

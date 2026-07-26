@@ -457,7 +457,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--runner", choices=("ubuntu-24.04", "ubuntu-22.04"), default="ubuntu-24.04"
     )
     parser.add_argument("--target-graph-healthy", type=int, required=True)
-    parser.add_argument("--batch-slots", type=int, default=50)
+    parser.add_argument("--batch-slots", type=int, default=20)
     parser.add_argument("--min-batch-slots", type=int, default=5)
     parser.add_argument("--max-dispatched", type=int, default=400)
     parser.add_argument("--poll-seconds", type=int, default=20)
@@ -473,8 +473,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         parser.error("--repo or GITHUB_REPOSITORY is required")
     if args.target_graph_healthy < 1:
         parser.error("--target-graph-healthy must be positive")
-    if not 1 <= args.batch_slots <= 256:
-        parser.error("--batch-slots must be between 1 and 256")
+    if not 1 <= args.batch_slots <= 20:
+        parser.error("--batch-slots must be between 1 and 20")
     if not 1 <= args.min_batch_slots <= args.batch_slots:
         parser.error("--min-batch-slots must be between 1 and --batch-slots")
     if args.max_dispatched < 1:

@@ -150,7 +150,7 @@ on:
         required: true
         default: "12"
       coordinator_mode:
-        description: "Coordinator policy after denylist. final_only allows concurrent entry and serializes decisive captcha finals within each owner lane."
+        description: "Coordinator policy after denylist. final_only keeps retries on one egress spaced while distinct runner egresses remain concurrent."
         required: true
         default: "final_only"
         type: choice
@@ -489,6 +489,7 @@ jobs:
           ip="$(curl -fsS --max-time 10 https://api.ipify.org 2>/dev/null || true)"
           export GA_PUBLIC_IP="$ip"
           python3 - <<'PY'
+          import hashlib
           import json
           import os
           import re
@@ -505,6 +506,26 @@ jobs:
           with open("Results/diagnostics/ga_egress.json", "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
           print(json.dumps(data, ensure_ascii=False))
+
+          # The target sees egress/session identity, not the GitHub owner. Keep
+          # retries from one runner in a lane while allowing distinct runner
+          # egresses, including those supplied by other owners, to run in
+          # parallel. Explicit lane-ab markers remain available for A/B tests.
+          lane_source = os.environ.get("GA_COORDINATOR_LANE", "").strip()
+          if not lane_source.startswith("lane-ab-") and data["public_ip"]:
+              lane_source = "egress-v1:" + hashlib.sha256(
+                  data["public_ip"].encode("utf-8")
+              ).hexdigest()[:20]
+          github_env = os.environ.get("GITHUB_ENV")
+          if github_env:
+              with open(github_env, "a", encoding="utf-8") as f:
+                  f.write(f"GA_PUBLIC_IP={data['public_ip']}\n")
+                  f.write(f"GA_COORDINATOR_LANE={lane_source or 'global'}\n")
+          print(json.dumps({
+              "coordinator_lane_basis": (
+                  "egress" if data["public_ip"] else "owner_fallback"
+              )
+          }))
 
           ip = data.get("public_ip") or ""
           raw = os.environ.get("EGRESS_PREFIX_DENYLIST", "")

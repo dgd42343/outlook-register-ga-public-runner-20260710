@@ -69,6 +69,21 @@ class DispatchDefaultsTests(unittest.TestCase):
         )
         self.assertEqual(args.variant, "offline_ads_pool_balanced_shuffle_v1")
         self.assertEqual(args.runner, "ubuntu-24.04")
+        self.assertEqual(args.batch_slots, 20)
+
+    def test_rejects_child_shards_larger_than_twenty_slots(self):
+        with self.assertRaises(SystemExit):
+            parse_args(
+                [
+                    "--repo",
+                    "a/b",
+                    "--target-graph-healthy",
+                    "1",
+                    "--batch-slots",
+                    "21",
+                    "--dry-run",
+                ]
+            )
 
     @patch("tools.ga_target_healthy_orchestrator.run_gh")
     @patch("tools.ga_target_healthy_orchestrator.list_child_runs", return_value=[])
