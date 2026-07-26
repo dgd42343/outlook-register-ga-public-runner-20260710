@@ -104,10 +104,6 @@ on:
         description: "Observed raw HSProtect main.min.js SHA-256 retained for stratification"
         required: true
         default: "77aed42430ae5f8c15294950fc69c37fa1ca52cec4c32d50e890e8b80830b502"
-      hsprotect_main_asset_family_sha256:
-        description: "Normalized HSProtect main.min.js family SHA-256 required before an account lease"
-        required: true
-        default: "b8f8b46fe3c73ba6b1756d68b5233f4e76a8aff54e53455c4dd8f113f2935fca"
       recovery_source_ref:
         description: "Pinned private recovery-control source commit"
         required: true
@@ -168,7 +164,7 @@ jobs:
       NATURAL_SAME_CHALLENGE_PHYSICAL_HOLD_LIMIT: "2"
       NATURAL_SAME_CHALLENGE_SETTLE_MODE: ${{ inputs.natural_same_challenge_settle_mode || 'control12' }}
       HSPROTECT_MAIN_ASSET_SHA256: ${{ inputs.hsprotect_main_asset_sha256 || '77aed42430ae5f8c15294950fc69c37fa1ca52cec4c32d50e890e8b80830b502' }}
-      HSPROTECT_MAIN_ASSET_FAMILY_SHA256: ${{ inputs.hsprotect_main_asset_family_sha256 || 'b8f8b46fe3c73ba6b1756d68b5233f4e76a8aff54e53455c4dd8f113f2935fca' }}
+      HSPROTECT_MAIN_ASSET_FAMILY_SHA256: "b8f8b46fe3c73ba6b1756d68b5233f4e76a8aff54e53455c4dd8f113f2935fca"
       RECOVERY_SOURCE_REF: ${{ inputs.recovery_source_ref || '6a320d7f299e368702b706a936498e736fe7c34b' }}
     steps:
       - name: Reject GitHub UI re-runs
