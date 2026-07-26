@@ -107,7 +107,7 @@ on:
       recovery_source_ref:
         description: "Pinned private recovery-control source commit"
         required: true
-        default: "315f2a47d3d739df1c01be5d537b37f79aba5d76"
+        default: "220037b75b1fe33ed343eb807e781cab226e701e"
       egress_prefix_denylist:
         description: "Known-bad GA egress prefixes skipped before an account lease is acquired"
         required: false
@@ -164,7 +164,7 @@ jobs:
       NATURAL_SAME_CHALLENGE_PHYSICAL_HOLD_LIMIT: "2"
       NATURAL_SAME_CHALLENGE_SETTLE_MODE: ${{ inputs.natural_same_challenge_settle_mode || 'control12' }}
       HSPROTECT_MAIN_ASSET_SHA256: ${{ inputs.hsprotect_main_asset_sha256 || '77aed42430ae5f8c15294950fc69c37fa1ca52cec4c32d50e890e8b80830b502' }}
-      RECOVERY_SOURCE_REF: ${{ inputs.recovery_source_ref || '315f2a47d3d739df1c01be5d537b37f79aba5d76' }}
+      RECOVERY_SOURCE_REF: ${{ inputs.recovery_source_ref || '220037b75b1fe33ed343eb807e781cab226e701e' }}
     steps:
       - name: Reject GitHub UI re-runs
         if: github.run_attempt != 1
@@ -425,7 +425,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.recovery_source_ref || '315f2a47d3d739df1c01be5d537b37f79aba5d76' }}
+          ref: ${{ inputs.recovery_source_ref || '220037b75b1fe33ed343eb807e781cab226e701e' }}
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
 
@@ -1473,6 +1473,21 @@ jobs:
               "attempt_number": int(lease.get("attempt_number") or 0) or None,
               "candidate_count": int(lease.get("candidate_count") or 0),
               "lease_sha12": lease.get("lease_sha12") or None,
+              "browser_webgl_observed": bool(runtime.get("browser_webgl_observed")),
+              "browser_webgl_integrity_ok": bool(runtime.get("browser_webgl_integrity_ok")),
+              "browser_webgl_integrity_reasons": [
+                  value for value in list(runtime.get("browser_webgl_integrity_reasons") or [])
+                  if value in {
+                      "context_unavailable", "vendor_missing", "renderer_missing",
+                      "webgl_version_missing", "glsl_version_missing", "extensions_empty",
+                      "aliased_line_width_range_zero_or_invalid",
+                      "aliased_point_size_range_zero_or_invalid",
+                      "webgl_version_empty_backend", "glsl_version_empty_backend",
+                      "evaluation_failed", "evaluation_invalid",
+                  }
+              ][:12],
+              "browser_webgl_context_available": bool(runtime.get("browser_webgl_context_available")),
+              "browser_webgl_extension_count": max(0, min(4096, int(runtime.get("browser_webgl_extension_count") or 0))),
               "service_abuse_cleared": bool(runtime.get("service_abuse_cleared")),
               "graph_ok": bool(runtime.get("graph_ok")),
               "production_writeback_attempted": bool(runtime.get("production_writeback_attempted")),
