@@ -588,8 +588,48 @@ jobs:
           echo "derived_blob=88455354d46511329b9584ffcd66dac7c764dd29" >> "$GITHUB_OUTPUT"
           echo "derived_sha256=0476aa171a1ca71f3da69fc3e8fefd272954c1b04d20d2a29ee2e06442f7bdaa" >> "$GITHUB_OUTPUT"
 
-      - name: System dependencies
+      - name: Restore precompiled GA runtime
         if: steps.runner_egress.outputs.prepare == 'true' && runner.os == 'Linux'
+        id: runtime-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .venv
+            ~/.cloakbrowser
+            ~/.local/share/fonts/ga-runtime
+          key: ${{ runner.os }}-${{ runner.arch }}-ga-runtime-v1-py310-cloak048
+          fail-on-cache-miss: false
+
+      - name: Validate precompiled GA runtime
+        if: steps.runner_egress.outputs.prepare == 'true' && runner.os == 'Linux' && steps.runtime-cache.outputs.cache-hit == 'true'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          . .venv/bin/activate
+          python - <<'PY'
+          import importlib.metadata as md
+
+          expected = {
+              "cloakbrowser": "0.4.8",
+              "playwright": "1.53.0",
+              "patchright": "1.61.2",
+          }
+          for package, wanted in expected.items():
+              actual = md.version(package)
+              print(f"{package}={actual}")
+              if actual != wanted:
+                  raise SystemExit(f"{package}: expected {wanted}, got {actual}")
+          PY
+          chrome=$(ls -1d "$HOME"/.cloakbrowser/chromium-*/chrome 2>/dev/null | tail -1)
+          test -x "$chrome"
+          "$chrome" --version
+          test -d "$HOME/.local/share/fonts/ga-runtime"
+          fc-cache -f "$HOME/.local/share/fonts/ga-runtime"
+          fc-match 'Segoe UI' | head -1
+          fc-match 'Calibri' | head -1
+
+      - name: System dependencies
+        if: steps.runner_egress.outputs.prepare == 'true' && runner.os == 'Linux' && steps.runtime-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euxo pipefail
@@ -607,7 +647,7 @@ jobs:
           fc-cache -f
 
       - name: Python environment on Linux
-        if: steps.runner_egress.outputs.prepare == 'true' && runner.os == 'Linux'
+        if: steps.runner_egress.outputs.prepare == 'true' && runner.os == 'Linux' && steps.runtime-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euxo pipefail
@@ -642,7 +682,7 @@ jobs:
           & .\.venv\Scripts\python.exe -m cloakbrowser info
 
       - name: Install registration-compatible Windows font aliases
-        if: steps.runner_egress.outputs.prepare == 'true' && runner.os == 'Linux'
+        if: steps.runner_egress.outputs.prepare == 'true' && runner.os == 'Linux' && steps.runtime-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euxo pipefail
