@@ -1038,78 +1038,35 @@ jobs:
             test -n "${OUTLOOK_PROXY_URL:-}"
             proxy_args=(--proxy "$OUTLOOK_PROXY_URL")
           fi
-          first="$RUNNER_TEMP/hsprotect-main-first.min.js"
-          second="$RUNNER_TEMP/hsprotect-main-second.min.js"
-          fetch_ok=true
-          curl -fsSL --retry 2 --retry-all-errors --max-time 30 \
-            "${proxy_args[@]}" \
-            https://client.hsprotect.net/PXzC5j78di/main.min.js \
-            -o "$first" || fetch_ok=false
-          sleep 1
-          curl -fsSL --retry 2 --retry-all-errors --max-time 30 \
-            "${proxy_args[@]}" \
-            https://client.hsprotect.net/PXzC5j78di/main.min.js \
-            -o "$second" || fetch_ok=false
-          FETCH_OK="$fetch_ok" FIRST="$first" SECOND="$second" \
-            "$VENV_PYTHON" - <<'PY'
-          import hashlib, json, os
-          from pathlib import Path
-
-          expected = os.environ.get("HSPROTECT_MAIN_ASSET_SHA256", "").strip()
-          fetch_ok = os.environ.get("FETCH_OK") == "true"
-
-          def identity(raw_path):
-              path = Path(raw_path)
-              if not path.is_file():
-                  return {"present": False, "length": 0, "sha256": ""}
-              body = path.read_bytes()
-              return {
-                  "present": True,
-                  "length": len(body),
-                  "sha256": hashlib.sha256(body).hexdigest(),
-              }
-
-          first = identity(os.environ["FIRST"])
-          second = identity(os.environ["SECOND"])
-          stable = (
-              first["present"]
-              and second["present"]
-              and first["length"] == second["length"]
-              and first["sha256"] == second["sha256"]
-          )
-          actual = first["sha256"] if stable else ""
-          admitted = fetch_ok and stable and actual == expected
-          if admitted:
-              reason = "pinned_asset_admitted"
-          elif not fetch_ok or not first["present"] or not second["present"]:
-              reason = "asset_fetch_failed"
-          elif not stable:
-              reason = "asset_changed_during_gate"
-          else:
-              reason = "asset_sha256_mismatch"
-          safe = {
-              "asset": "client.hsprotect.net/PXzC5j78di/main.min.js",
-              "expected_sha256": expected,
-              "first_sha256": first["sha256"] or None,
-              "first_length": first["length"],
-              "second_sha256": second["sha256"] or None,
-              "second_length": second["length"],
-              "stable": stable,
-              "admitted": admitted,
-              "reason": reason,
-          }
-          out = Path(os.environ["RUNNER_TEMP"]) / "hsprotect-main-asset-safe.json"
-          out.write_text(json.dumps(safe, indent=2), encoding="utf-8")
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
-              fh.write(f"admitted={str(admitted).lower()}\n")
-              fh.write(f"actual_sha256={actual}\n")
-              fh.write(f"reason={reason}\n")
-          print(json.dumps(safe))
-          if not admitted:
-              raise SystemExit(
-                  "live HSProtect client asset is not the pinned experimental variant"
-              )
-          PY
+          sample_args=()
+          previous_sha=""
+          for attempt in 1 2 3 4; do
+            sample="$RUNNER_TEMP/hsprotect-main-sample-$attempt.min.js"
+            rm -f "$sample"
+            if curl -fsSL --retry 2 --retry-all-errors --max-time 30 \
+              "${proxy_args[@]}" \
+              https://client.hsprotect.net/PXzC5j78di/main.min.js \
+              -o "$sample"; then
+              current_sha=$(sha256sum "$sample" | cut -d' ' -f1)
+            else
+              rm -f "$sample"
+              current_sha=""
+            fi
+            sample_args+=(--sample "$sample")
+            if [ "$current_sha" = "$HSPROTECT_MAIN_ASSET_SHA256" ] && \
+              [ "$previous_sha" = "$HSPROTECT_MAIN_ASSET_SHA256" ]; then
+              break
+            fi
+            previous_sha="$current_sha"
+            if [ "$attempt" -lt 4 ]; then
+              sleep 1
+            fi
+          done
+          "$VENV_PYTHON" tools/hsprotect_asset_gate.py \
+            --expected "$HSPROTECT_MAIN_ASSET_SHA256" \
+            "${sample_args[@]}" \
+            --safe-output "$RUNNER_TEMP/hsprotect-main-asset-safe.json" \
+            --github-output "$GITHUB_OUTPUT"
 
       - name: Atomically lease oldest service-abuse account
         if: steps.egress.outputs.admitted == 'true'
