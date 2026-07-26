@@ -69,7 +69,6 @@ class DispatchDefaultsTests(unittest.TestCase):
         )
         self.assertEqual(args.variant, "offline_ads_pool_balanced_shuffle_v1")
         self.assertEqual(args.runner, "ubuntu-24.04")
-        self.assertEqual(args.coordinator_lane, "")
 
     @patch("tools.ga_target_healthy_orchestrator.run_gh")
     @patch("tools.ga_target_healthy_orchestrator.list_child_runs", return_value=[])
@@ -86,14 +85,12 @@ class DispatchDefaultsTests(unittest.TestCase):
             runner="ubuntu-24.04",
             slots=3,
             batch_marker="batch-1",
-            coordinator_lane="owner-a",
         )
 
         self.assertEqual(run_id, 29417330058)
         arguments = run_gh.call_args.args[0]
         self.assertIn("variant=offline_ads_pool_ga_fresh_rechallenge", arguments)
         self.assertIn("runner=ubuntu-24.04", arguments)
-        self.assertIn("coordinator_lane=owner-a", arguments)
 
 
 class AdaptiveBatchTests(unittest.TestCase):

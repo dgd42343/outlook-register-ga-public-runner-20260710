@@ -31,10 +31,6 @@ on:
         options:
           - ubuntu-24.04
           - ubuntu-22.04
-      child_coordinator_lane:
-        description: "Optional explicit child lane source; empty derives one lane per child repository owner"
-        required: false
-        default: ""
       child_timeout_minutes:
         description: "Parent wait deadline for each child workflow"
         required: true
@@ -76,7 +72,6 @@ jobs:
             --repo "${{ github.repository }}" \
             --ref "$child_ref" \
             --runner "${{ inputs.child_runner }}" \
-            --coordinator-lane "${{ inputs.child_coordinator_lane }}" \
             --target-graph-healthy "${{ inputs.target_graph_healthy }}" \
             --batch-slots "${{ inputs.batch_slots }}" \
             --min-batch-slots "${{ inputs.min_batch_slots }}" \

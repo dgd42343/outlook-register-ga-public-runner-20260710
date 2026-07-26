@@ -159,10 +159,6 @@ on:
           - entry
           - entry_final
           - final_only
-      coordinator_lane:
-        description: "Optional final-scheduler lane source. Empty derives one lane per GitHub owner; set explicitly only for controlled lane A-B tests."
-        required: false
-        default: ""
       max_parallel:
         description: "Maximum simultaneous matrix jobs per repository; 20 is the verified starting point for a lane-aware final scheduler."
         required: true
@@ -214,7 +210,7 @@ jobs:
       GA_COORDINATOR_TOKEN: ${{ secrets.GA_COORDINATOR_TOKEN }}
       GA_COORDINATOR_MODE: ${{ inputs.coordinator_mode }}
       GA_COORDINATOR_SLOT: ${{ matrix.attempt }}
-      GA_COORDINATOR_LANE: ${{ inputs.coordinator_lane != '' && inputs.coordinator_lane || github.repository_owner }}
+      GA_COORDINATOR_LANE: ${{ startsWith(inputs.orchestration_id, 'lane-ab-') && inputs.orchestration_id || github.repository_owner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -866,7 +862,7 @@ jobs:
         if: ${{ (inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1') && steps.egress.outputs.should_probe != 'false' }}
         shell: bash
         env:
-          PROFILE_SELECTION_SEED: ${{ format('{0}:{1}', inputs.orchestration_id != '' && inputs.orchestration_id || github.run_id, inputs.coordinator_lane != '' && inputs.coordinator_lane || github.repository_owner) }}
+          PROFILE_SELECTION_SEED: ${{ format('{0}:{1}', inputs.orchestration_id != '' && inputs.orchestration_id || github.run_id, startsWith(inputs.orchestration_id, 'lane-ab-') && inputs.orchestration_id || github.repository_owner) }}
         run: |
           set -euo pipefail
           mkdir -p .ads-offline/generated Results/diagnostics

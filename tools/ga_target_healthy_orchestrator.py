@@ -116,7 +116,6 @@ def dispatch_child(
     runner: str,
     slots: int,
     batch_marker: str,
-    coordinator_lane: str = "",
 ) -> int:
     before = {
         int(row["databaseId"])
@@ -141,8 +140,6 @@ def dispatch_child(
             "-f",
             f"runner={runner}",
         ]
-    if coordinator_lane:
-        arguments.extend(["-f", f"coordinator_lane={coordinator_lane}"])
     process = run_gh(arguments)
     run_id = parse_run_id((process.stdout or "") + "\n" + (process.stderr or ""))
     if run_id is not None:
@@ -466,11 +463,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--poll-seconds", type=int, default=20)
     parser.add_argument("--child-timeout-minutes", type=int, default=45)
     parser.add_argument("--orchestration-id", default="")
-    parser.add_argument(
-        "--coordinator-lane",
-        default="",
-        help="Optional explicit child lane source; empty derives a lane from the repository owner.",
-    )
     parser.add_argument("--artifact-root", type=Path, default=Path("Results/ga-target"))
     parser.add_argument(
         "--summary", type=Path, default=Path("Results/target-healthy-summary.json")
@@ -507,7 +499,6 @@ def main(argv: list[str] | None = None) -> int:
         "child_ref": args.ref,
         "child_variant": args.variant,
         "child_runner": args.runner,
-        "child_coordinator_lane": args.coordinator_lane,
         "target_graph_healthy": args.target_graph_healthy,
         "batch_slots_max": args.batch_slots,
         "min_batch_slots": args.min_batch_slots,
@@ -571,7 +562,6 @@ def main(argv: list[str] | None = None) -> int:
                 runner=args.runner,
                 slots=slots,
                 batch_marker=batch_marker,
-                coordinator_lane=args.coordinator_lane,
             )
             run_info = wait_for_child(
                 repo=args.repo,
