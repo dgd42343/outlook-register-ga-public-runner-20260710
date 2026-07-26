@@ -566,19 +566,18 @@ jobs:
         run: |
           set -euo pipefail
           runtime="$GITHUB_WORKSPACE/.production-human-runtime"
-          patch="$GITHUB_WORKSPACE/runtime_overlays/patchright_controller_875b057_pre_press_guard.patch"
+          overlay="$GITHUB_WORKSPACE/runtime_overlays/patchright_controller_875b057_pre_press_guard.py"
           test "$(git -C "$runtime" rev-parse HEAD:controllers/patchright_controller.py)" = \
             'dbf139e1c63cdbabb08262b75c797244cddb4a15'
-          test "$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD:runtime_overlays/patchright_controller_875b057_pre_press_guard.patch)" = \
-            '3aa1ef8b58fd21c5671ac1c1d1c7665b8ee27cc2'
-          test "$(sha256sum "$patch" | cut -d' ' -f1)" = \
-            '839649552bcd359f6e1f534834d7a52a318b464a1cbc0f7c88a2061e8a71b9bb'
-          git -C "$runtime" apply --ignore-space-change --check "$patch"
-          git -C "$runtime" apply --ignore-space-change "$patch"
+          test "$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD:runtime_overlays/patchright_controller_875b057_pre_press_guard.py)" = \
+            '88455354d46511329b9584ffcd66dac7c764dd29'
+          test "$(sha256sum "$overlay" | cut -d' ' -f1)" = \
+            '0476aa171a1ca71f3da69fc3e8fefd272954c1b04d20d2a29ee2e06442f7bdaa'
+          cp "$overlay" "$runtime/controllers/patchright_controller.py"
           test "$(git -C "$runtime" hash-object controllers/patchright_controller.py)" = \
-            '3427ce60ab7537a591785b889cda1931bde1587c'
+            '88455354d46511329b9584ffcd66dac7c764dd29'
           test "$(sha256sum "$runtime/controllers/patchright_controller.py" | cut -d' ' -f1)" = \
-            'afebdfce848a8d86d002cfa416d21fe67cf480fbf367a52fcc48a403c238211b'
+            '0476aa171a1ca71f3da69fc3e8fefd272954c1b04d20d2a29ee2e06442f7bdaa'
           grep -Fq '_supports_hold_pre_press_guard = True' \
             "$runtime/controllers/patchright_controller.py"
           grep -Fq 'pre_press_guard_running' \
@@ -586,8 +585,8 @@ jobs:
           "$BOOTSTRAP_PYTHON" -m py_compile "$runtime/controllers/patchright_controller.py"
           echo "applied=true" >> "$GITHUB_OUTPUT"
           echo "base_blob=dbf139e1c63cdbabb08262b75c797244cddb4a15" >> "$GITHUB_OUTPUT"
-          echo "derived_blob=3427ce60ab7537a591785b889cda1931bde1587c" >> "$GITHUB_OUTPUT"
-          echo "derived_sha256=afebdfce848a8d86d002cfa416d21fe67cf480fbf367a52fcc48a403c238211b" >> "$GITHUB_OUTPUT"
+          echo "derived_blob=88455354d46511329b9584ffcd66dac7c764dd29" >> "$GITHUB_OUTPUT"
+          echo "derived_sha256=0476aa171a1ca71f3da69fc3e8fefd272954c1b04d20d2a29ee2e06442f7bdaa" >> "$GITHUB_OUTPUT"
 
       - name: System dependencies
         if: steps.runner_egress.outputs.prepare == 'true' && runner.os == 'Linux'
