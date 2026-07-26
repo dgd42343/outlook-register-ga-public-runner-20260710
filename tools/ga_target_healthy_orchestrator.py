@@ -116,6 +116,7 @@ def dispatch_child(
     runner: str,
     slots: int,
     batch_marker: str,
+    coordinator_lane: str = "",
 ) -> int:
     before = {
         int(row["databaseId"])
@@ -123,8 +124,7 @@ def dispatch_child(
         if row.get("databaseId") is not None
     }
     slot_json = json.dumps(list(range(1, slots + 1)), separators=(",", ":"))
-    process = run_gh(
-        [
+    arguments = [
             "workflow",
             "run",
             workflow,
@@ -141,7 +141,9 @@ def dispatch_child(
             "-f",
             f"runner={runner}",
         ]
-    )
+    if coordinator_lane:
+        arguments.extend(["-f", f"coordinator_lane={coordinator_lane}"])
+    process = run_gh(arguments)
     run_id = parse_run_id((process.stdout or "") + "\n" + (process.stderr or ""))
     if run_id is not None:
         return run_id
@@ -310,6 +312,26 @@ def summarize_verdicts(
             for gap in (row.get("coordinator_final_gap_ms") or [])
         }
     )
+    global_gaps = sorted(
+        {
+            int(gap)
+            for row in rows
+            for gap in (row.get("coordinator_final_global_gap_ms") or [])
+        }
+    )
+    window_waits = [
+        int(wait)
+        for row in rows
+        for wait in (row.get("coordinator_final_window_wait_ms") or [])
+    ]
+    coordinator_lanes = sorted(
+        {
+            str(lane)
+            for row in rows
+            for lane in (row.get("coordinator_lane_hashes") or [])
+            if lane
+        }
+    )
     created = parse_timestamp(str(run_info["createdAt"]))
     updated = parse_timestamp(str(run_info["updatedAt"]))
     duration_minutes = (updated - created).total_seconds() / 60
@@ -346,6 +368,9 @@ def summarize_verdicts(
         "coordinator_final_wait_ms_total": sum(waits),
         "coordinator_final_wait_ms_max": max(waits, default=0),
         "coordinator_final_gap_ms": gaps,
+        "coordinator_final_global_gap_ms": global_gaps,
+        "coordinator_final_window_wait_ms_total": sum(window_waits),
+        "coordinator_lanes": coordinator_lanes,
         "observed_config": {
             "variant": unique_values(rows, "variant"),
             "ads_profile_policy": unique_values(rows, "ads_profile_policy"),
@@ -429,7 +454,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--workflow", default="ctf-ga-own-ip-pool.yml")
     parser.add_argument("--ref", default="main")
     parser.add_argument(
-        "--variant", default="offline_ads_pool_ga_fresh_rechallenge"
+        "--variant", default="offline_ads_pool_balanced_shuffle_v1"
     )
     parser.add_argument(
         "--runner", choices=("ubuntu-24.04", "ubuntu-22.04"), default="ubuntu-24.04"
@@ -441,6 +466,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--poll-seconds", type=int, default=20)
     parser.add_argument("--child-timeout-minutes", type=int, default=45)
     parser.add_argument("--orchestration-id", default="")
+    parser.add_argument(
+        "--coordinator-lane",
+        default="",
+        help="Optional explicit child lane source; empty derives a lane from the repository owner.",
+    )
     parser.add_argument("--artifact-root", type=Path, default=Path("Results/ga-target"))
     parser.add_argument(
         "--summary", type=Path, default=Path("Results/target-healthy-summary.json")
@@ -477,6 +507,7 @@ def main(argv: list[str] | None = None) -> int:
         "child_ref": args.ref,
         "child_variant": args.variant,
         "child_runner": args.runner,
+        "child_coordinator_lane": args.coordinator_lane,
         "target_graph_healthy": args.target_graph_healthy,
         "batch_slots_max": args.batch_slots,
         "min_batch_slots": args.min_batch_slots,
@@ -540,6 +571,7 @@ def main(argv: list[str] | None = None) -> int:
                 runner=args.runner,
                 slots=slots,
                 batch_marker=batch_marker,
+                coordinator_lane=args.coordinator_lane,
             )
             run_info = wait_for_child(
                 repo=args.repo,

@@ -40,7 +40,7 @@ on:
       variant:
         description: "Probe variant to run on each fresh GA egress IP"
         required: true
-        default: "offline_ads_pool_ga_fresh_rechallenge"
+        default: "offline_ads_pool_balanced_shuffle_v1"
         type: choice
         options:
           - default
@@ -150,7 +150,7 @@ on:
         required: true
         default: "12"
       coordinator_mode:
-        description: "Coordinator policy after denylist. final_only allows concurrent entry but still serializes decisive captcha finals."
+        description: "Coordinator policy after denylist. final_only allows concurrent entry and serializes decisive captcha finals within each owner lane."
         required: true
         default: "final_only"
         type: choice
@@ -159,8 +159,12 @@ on:
           - entry
           - entry_final
           - final_only
+      coordinator_lane:
+        description: "Optional final-scheduler lane source. Empty derives one lane per GitHub owner; set explicitly only for controlled lane A-B tests."
+        required: false
+        default: ""
       max_parallel:
-        description: "Maximum simultaneous matrix jobs; 20 is the verified sweet point with final_only and a 12s coordinator gap."
+        description: "Maximum simultaneous matrix jobs per repository; 20 is the verified starting point for a lane-aware final scheduler."
         required: true
         default: "20"
       runtime_mode:
@@ -210,12 +214,13 @@ jobs:
       GA_COORDINATOR_TOKEN: ${{ secrets.GA_COORDINATOR_TOKEN }}
       GA_COORDINATOR_MODE: ${{ inputs.coordinator_mode }}
       GA_COORDINATOR_SLOT: ${{ matrix.attempt }}
+      GA_COORDINATOR_LANE: ${{ inputs.coordinator_lane != '' && inputs.coordinator_lane || github.repository_owner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' && 'abc1a97827b6ee68c3a3ab60cb5769d66cf99b99' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' && 'c183e15554378a23b0a79e38eeeffb5173fa9a3a' || inputs.variant == 'sunbrowser_fresh_completion_ab_v1' && '8416afe01af20fdc9311441624f01a32f0c99684' || inputs.variant == 'sunbrowser_hardware_template_ab_v1' && '63d36038928a364d4263049dd1a9a184e4552409' || inputs.variant == 'sunbrowser_webgl_integrity_ab_v1' && '64b9ca34ee7ce95407a22cf7e6c36562185eb077' || inputs.variant == 'sunbrowser_profile_state_ab_v1' && '73d4cffbbb31322f254903cb83890e4179a4b589' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' && '77ed97ba2e15e4bf107e88a2e8c7a88e0aadef40' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' && '31e5d63efa879f753a71e0ac820c2bedfad376a1' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' && '2df4a7f25cd9c971b5ffba81174f7889432a2e77' || inputs.variant == 'sunbrowser_thin_natural' && '0f7a8643cf2ec6232f797e041f0cd79427bf38b9' || inputs.variant == 'historical_ga_success_default' && 'f8c9c0ea377a08b4c5c10a05c0558cda85d5a01a' || inputs.variant == 'historical_ga_highrate_336a973' && '336a97312e3e89219ad6179b196bfa99239cb13e' || inputs.variant == 'historical_ga_fresh_rechallenge' && '96787a7561f5e4b8786c2fda9cf3f8f1da0035bf' || inputs.variant == 'online_ads_ga_fresh_rechallenge' && '31dfe0e28e5da13645a455dba6737c19346faf63' || inputs.variant == 'online_ads_ga_production_fast_fail' && '875b0571d5b9c88b89a5bbc64f30488ee9565962' || inputs.variant == 'online_ads_ga_fresh_5s_recovery' && 'ae0745a95f73bec3ab24b9a5ce461bae1fa4a371' || inputs.variant == 'online_ads_ga_5s_hold_transplant' && '01086ae6d319a8bbf019ddb34267edd59ac7ec31' || (inputs.variant == 'release_5s_success_baseline' || inputs.variant == 'release_5s_success_attempt2') && '00b68437e041cbdcee2be209a18d7a5592f4c2dd' || (inputs.variant == 'offline_ads_like_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge') && '0838ef3a52c6eb337b0847762757d282b36b9e5e' || vars.PRIVATE_SOURCE_REF }}
+          ref: ${{ inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' && '502635b8402912f98edbab9cad1a6fca2311be4a' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' && 'c183e15554378a23b0a79e38eeeffb5173fa9a3a' || inputs.variant == 'sunbrowser_fresh_completion_ab_v1' && '8416afe01af20fdc9311441624f01a32f0c99684' || inputs.variant == 'sunbrowser_hardware_template_ab_v1' && '63d36038928a364d4263049dd1a9a184e4552409' || inputs.variant == 'sunbrowser_webgl_integrity_ab_v1' && '64b9ca34ee7ce95407a22cf7e6c36562185eb077' || inputs.variant == 'sunbrowser_profile_state_ab_v1' && '73d4cffbbb31322f254903cb83890e4179a4b589' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' && '77ed97ba2e15e4bf107e88a2e8c7a88e0aadef40' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' && '31e5d63efa879f753a71e0ac820c2bedfad376a1' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' && '2df4a7f25cd9c971b5ffba81174f7889432a2e77' || inputs.variant == 'sunbrowser_thin_natural' && '0f7a8643cf2ec6232f797e041f0cd79427bf38b9' || inputs.variant == 'historical_ga_success_default' && 'f8c9c0ea377a08b4c5c10a05c0558cda85d5a01a' || inputs.variant == 'historical_ga_highrate_336a973' && '336a97312e3e89219ad6179b196bfa99239cb13e' || inputs.variant == 'historical_ga_fresh_rechallenge' && '96787a7561f5e4b8786c2fda9cf3f8f1da0035bf' || inputs.variant == 'online_ads_ga_fresh_rechallenge' && '31dfe0e28e5da13645a455dba6737c19346faf63' || inputs.variant == 'online_ads_ga_production_fast_fail' && '875b0571d5b9c88b89a5bbc64f30488ee9565962' || inputs.variant == 'online_ads_ga_fresh_5s_recovery' && 'ae0745a95f73bec3ab24b9a5ce461bae1fa4a371' || inputs.variant == 'online_ads_ga_5s_hold_transplant' && '01086ae6d319a8bbf019ddb34267edd59ac7ec31' || (inputs.variant == 'release_5s_success_baseline' || inputs.variant == 'release_5s_success_attempt2') && '00b68437e041cbdcee2be209a18d7a5592f4c2dd' || (inputs.variant == 'offline_ads_like_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge') && '0838ef3a52c6eb337b0847762757d282b36b9e5e' || vars.PRIVATE_SOURCE_REF }}
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
           clean: true
@@ -861,7 +866,7 @@ jobs:
         if: ${{ (inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1') && steps.egress.outputs.should_probe != 'false' }}
         shell: bash
         env:
-          PROFILE_SELECTION_SEED: ${{ inputs.orchestration_id != '' && inputs.orchestration_id || github.run_id }}
+          PROFILE_SELECTION_SEED: ${{ format('{0}:{1}', inputs.orchestration_id != '' && inputs.orchestration_id || github.run_id, inputs.coordinator_lane != '' && inputs.coordinator_lane || github.repository_owner) }}
         run: |
           set -euo pipefail
           mkdir -p .ads-offline/generated Results/diagnostics
@@ -1077,12 +1082,20 @@ jobs:
           test -n "${GA_COORDINATOR_TOKEN:-}"
           mkdir -p Results/diagnostics
           payload=$(python3 - <<'PY'
-          import json, os
+          import hashlib, json, os
+          lane_source = os.environ.get("GA_COORDINATOR_LANE", "").strip() or "global"
+          lane = (
+              "global" if lane_source == "global" else
+              hashlib.sha256(
+                  f"ga-coordinator-lane-v1\0{lane_source}".encode("utf-8")
+              ).hexdigest()[:16]
+          )
           print(json.dumps({
               "stage": "entry",
               "request_id": f"{os.environ['GITHUB_RUN_ID']}:{os.environ['GA_SLOT']}:entry",
               "run_id": os.environ["GITHUB_RUN_ID"],
               "slot": os.environ["GA_SLOT"],
+              "lane": lane,
           }, separators=(",", ":")))
           PY
 
@@ -2928,9 +2941,13 @@ jobs:
           # coordinator line is mirrored into wrapper logs.
           coordinator_final_wait_ms = []
           coordinator_final_gap_ms = []
+          coordinator_final_global_gap_ms = []
+          coordinator_final_window_wait_ms = []
+          coordinator_lane_hashes = set()
           coordinator_pattern = re.compile(
-              r"\[Coordinator\] stage=final seq=\d+ lease=\S+ "
-              r"wait_ms=(\d+) gap_ms=(\d+) reused=False"
+              r"\[Coordinator\] stage=final seq=\d+ "
+              r"(?:lane=(\S+) )?lease=\S+ wait_ms=(\d+) gap_ms=(\d+)"
+              r"(?: global_gap_ms=(\d+) window_wait_ms=(\d+))? reused=False"
           )
           for log_path in Path("Results/protocol_runtime").glob("*_live_probe.log"):
               try:
@@ -2938,8 +2955,14 @@ jobs:
               except Exception:
                   continue
               for match in coordinator_pattern.finditer(log_text):
-                  coordinator_final_wait_ms.append(int(match.group(1)))
-                  coordinator_final_gap_ms.append(int(match.group(2)))
+                  if match.group(1):
+                      coordinator_lane_hashes.add(match.group(1))
+                  coordinator_final_wait_ms.append(int(match.group(2)))
+                  coordinator_final_gap_ms.append(int(match.group(3)))
+                  if match.group(4):
+                      coordinator_final_global_gap_ms.append(int(match.group(4)))
+                  if match.group(5):
+                      coordinator_final_window_wait_ms.append(int(match.group(5)))
 
           result_values = []
           for key in ("network_collector_results", "route_collector_results", "route_merged_results"):
@@ -3230,6 +3253,11 @@ jobs:
               "coordinator_final_reservations": len(coordinator_final_wait_ms),
               "coordinator_final_wait_ms": coordinator_final_wait_ms,
               "coordinator_final_gap_ms": sorted(set(coordinator_final_gap_ms)),
+              "coordinator_final_global_gap_ms": sorted(
+                  set(coordinator_final_global_gap_ms)
+              ),
+              "coordinator_final_window_wait_ms": coordinator_final_window_wait_ms,
+              "coordinator_lane_hashes": sorted(coordinator_lane_hashes),
           }
           out = Path("public-safe-verdict") / f"verdict-{safe['attempt']}.json"
           out.write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
