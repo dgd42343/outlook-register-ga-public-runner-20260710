@@ -68,6 +68,7 @@ class DispatchDefaultsTests(unittest.TestCase):
             ["--repo", "a/b", "--target-graph-healthy", "1", "--dry-run"]
         )
         self.assertEqual(args.variant, "offline_ads_pool_ga_fresh_rechallenge")
+        self.assertEqual(args.runner, "ubuntu-24.04")
 
     @patch("tools.ga_target_healthy_orchestrator.run_gh")
     @patch("tools.ga_target_healthy_orchestrator.list_child_runs", return_value=[])
@@ -81,6 +82,7 @@ class DispatchDefaultsTests(unittest.TestCase):
             workflow="ctf-ga-own-ip-pool.yml",
             ref="production",
             variant="offline_ads_pool_ga_fresh_rechallenge",
+            runner="ubuntu-24.04",
             slots=3,
             batch_marker="batch-1",
         )
@@ -88,6 +90,7 @@ class DispatchDefaultsTests(unittest.TestCase):
         self.assertEqual(run_id, 29417330058)
         arguments = run_gh.call_args.args[0]
         self.assertIn("variant=offline_ads_pool_ga_fresh_rechallenge", arguments)
+        self.assertIn("runner=ubuntu-24.04", arguments)
 
 
 class AdaptiveBatchTests(unittest.TestCase):

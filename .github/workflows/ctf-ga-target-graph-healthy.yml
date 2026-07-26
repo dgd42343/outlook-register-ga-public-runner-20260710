@@ -20,9 +20,17 @@ on:
         required: true
         default: "400"
       child_ref:
-        description: "Public-runner ref used for child workflow dispatches"
+        description: "Public-runner ref used for child dispatches; empty follows this orchestrator run's ref"
+        required: false
+        default: ""
+      child_runner:
+        description: "Ubuntu runner pool explicitly passed to every child batch"
         required: true
-        default: "main"
+        default: "ubuntu-24.04"
+        type: choice
+        options:
+          - ubuntu-24.04
+          - ubuntu-22.04
       child_timeout_minutes:
         description: "Parent wait deadline for each child workflow"
         required: true
@@ -56,9 +64,14 @@ jobs:
         run: |
           set +e
           mkdir -p Results
+          child_ref="${{ inputs.child_ref }}"
+          if [ -z "$child_ref" ]; then
+            child_ref="$GITHUB_REF_NAME"
+          fi
           python3 tools/ga_target_healthy_orchestrator.py \
             --repo "${{ github.repository }}" \
-            --ref "${{ inputs.child_ref }}" \
+            --ref "$child_ref" \
+            --runner "${{ inputs.child_runner }}" \
             --target-graph-healthy "${{ inputs.target_graph_healthy }}" \
             --batch-slots "${{ inputs.batch_slots }}" \
             --min-batch-slots "${{ inputs.min_batch_slots }}" \

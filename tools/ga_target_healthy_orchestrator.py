@@ -113,6 +113,7 @@ def dispatch_child(
     workflow: str,
     ref: str,
     variant: str,
+    runner: str,
     slots: int,
     batch_marker: str,
 ) -> int:
@@ -137,6 +138,8 @@ def dispatch_child(
             f"orchestration_id={batch_marker}",
             "-f",
             f"variant={variant}",
+            "-f",
+            f"runner={runner}",
         ]
     )
     run_id = parse_run_id((process.stdout or "") + "\n" + (process.stderr or ""))
@@ -428,6 +431,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--variant", default="offline_ads_pool_ga_fresh_rechallenge"
     )
+    parser.add_argument(
+        "--runner", choices=("ubuntu-24.04", "ubuntu-22.04"), default="ubuntu-24.04"
+    )
     parser.add_argument("--target-graph-healthy", type=int, required=True)
     parser.add_argument("--batch-slots", type=int, default=50)
     parser.add_argument("--min-batch-slots", type=int, default=5)
@@ -470,6 +476,7 @@ def main(argv: list[str] | None = None) -> int:
         "child_workflow": args.workflow,
         "child_ref": args.ref,
         "child_variant": args.variant,
+        "child_runner": args.runner,
         "target_graph_healthy": args.target_graph_healthy,
         "batch_slots_max": args.batch_slots,
         "min_batch_slots": args.min_batch_slots,
@@ -530,6 +537,7 @@ def main(argv: list[str] | None = None) -> int:
                 workflow=args.workflow,
                 ref=args.ref,
                 variant=args.variant,
+                runner=args.runner,
                 slots=slots,
                 batch_marker=batch_marker,
             )
