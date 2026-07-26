@@ -2400,6 +2400,9 @@ jobs:
           row = load_json("/tmp/private_classification.json")
           ingest = load_json("Results/diagnostics/outlook_email_ingest.json")
           ads_fetch = load_json("Results/diagnostics/ads_online_fetch.json")
+          ads_offline_select = load_json(
+              "Results/diagnostics/ads_offline_select.json"
+          )
           session_restart = load_json("Results/diagnostics/fresh_session_restart.json")
           warmup = load_json("Results/diagnostics/pre_first_hold_warmup.json")
           signup_country = load_json("Results/diagnostics/signup_country_policy.json")
@@ -2675,13 +2678,21 @@ jobs:
           offline_fresh_cookie_clear_solution_cookies = optional_bool(
               offline_fresh_cookie.get("clear_solution_cookies")
           )
+          ads_selection = ads_fetch
+          if os.environ.get("VARIANT", "") in {
+              "offline_ads_pool_ga_fresh_rechallenge",
+              "offline_ads_pool_fresh_cookie_ab_v1",
+          }:
+              ads_selection = ads_offline_select
           try:
-              ads_profile_selected_index = int(ads_fetch["selected_index"])
-              ads_profile_source_slot = int(ads_fetch["profile_source_slot"])
+              ads_profile_selected_index = int(ads_selection["selected_index"])
+              ads_profile_source_slot = int(
+                  ads_selection.get("profile_source_slot", ads_selection.get("slot"))
+              )
           except (KeyError, TypeError, ValueError):
               ads_profile_selected_index = None
               ads_profile_source_slot = None
-          ads_template_sha256 = str(ads_fetch.get("template_sha256") or "")
+          ads_template_sha256 = str(ads_selection.get("template_sha256") or "")
           if not re.fullmatch(r"[0-9a-f]{64}", ads_template_sha256):
               ads_template_sha256 = None
 
