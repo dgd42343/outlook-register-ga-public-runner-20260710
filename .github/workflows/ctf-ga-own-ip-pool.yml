@@ -53,6 +53,7 @@ on:
           - online_ads_ga_5s_hold_transplant
           - offline_ads_like_ga_fresh_rechallenge
           - offline_ads_pool_ga_fresh_rechallenge
+          - offline_ads_pool_balanced_shuffle_v1
           - offline_ads_pool_fresh_cookie_ab_v1
           - semiprotocol_5s_stable
           - sunbrowser_thin_natural
@@ -214,7 +215,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' && 'c183e15554378a23b0a79e38eeeffb5173fa9a3a' || inputs.variant == 'sunbrowser_fresh_completion_ab_v1' && '8416afe01af20fdc9311441624f01a32f0c99684' || inputs.variant == 'sunbrowser_hardware_template_ab_v1' && '63d36038928a364d4263049dd1a9a184e4552409' || inputs.variant == 'sunbrowser_webgl_integrity_ab_v1' && '64b9ca34ee7ce95407a22cf7e6c36562185eb077' || inputs.variant == 'sunbrowser_profile_state_ab_v1' && '73d4cffbbb31322f254903cb83890e4179a4b589' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' && '77ed97ba2e15e4bf107e88a2e8c7a88e0aadef40' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' && '31e5d63efa879f753a71e0ac820c2bedfad376a1' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' && '2df4a7f25cd9c971b5ffba81174f7889432a2e77' || inputs.variant == 'sunbrowser_thin_natural' && '0f7a8643cf2ec6232f797e041f0cd79427bf38b9' || inputs.variant == 'historical_ga_success_default' && 'f8c9c0ea377a08b4c5c10a05c0558cda85d5a01a' || inputs.variant == 'historical_ga_highrate_336a973' && '336a97312e3e89219ad6179b196bfa99239cb13e' || inputs.variant == 'historical_ga_fresh_rechallenge' && '96787a7561f5e4b8786c2fda9cf3f8f1da0035bf' || inputs.variant == 'online_ads_ga_fresh_rechallenge' && '31dfe0e28e5da13645a455dba6737c19346faf63' || inputs.variant == 'online_ads_ga_production_fast_fail' && '875b0571d5b9c88b89a5bbc64f30488ee9565962' || inputs.variant == 'online_ads_ga_fresh_5s_recovery' && 'ae0745a95f73bec3ab24b9a5ce461bae1fa4a371' || inputs.variant == 'online_ads_ga_5s_hold_transplant' && '01086ae6d319a8bbf019ddb34267edd59ac7ec31' || (inputs.variant == 'release_5s_success_baseline' || inputs.variant == 'release_5s_success_attempt2') && '00b68437e041cbdcee2be209a18d7a5592f4c2dd' || (inputs.variant == 'offline_ads_like_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge') && '0838ef3a52c6eb337b0847762757d282b36b9e5e' || vars.PRIVATE_SOURCE_REF }}
+          ref: ${{ inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' && '86fddc0eb129d30e1d4130be178cc2d2db146f6b' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' && 'c183e15554378a23b0a79e38eeeffb5173fa9a3a' || inputs.variant == 'sunbrowser_fresh_completion_ab_v1' && '8416afe01af20fdc9311441624f01a32f0c99684' || inputs.variant == 'sunbrowser_hardware_template_ab_v1' && '63d36038928a364d4263049dd1a9a184e4552409' || inputs.variant == 'sunbrowser_webgl_integrity_ab_v1' && '64b9ca34ee7ce95407a22cf7e6c36562185eb077' || inputs.variant == 'sunbrowser_profile_state_ab_v1' && '73d4cffbbb31322f254903cb83890e4179a4b589' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' && '77ed97ba2e15e4bf107e88a2e8c7a88e0aadef40' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' && '31e5d63efa879f753a71e0ac820c2bedfad376a1' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' && '2df4a7f25cd9c971b5ffba81174f7889432a2e77' || inputs.variant == 'sunbrowser_thin_natural' && '0f7a8643cf2ec6232f797e041f0cd79427bf38b9' || inputs.variant == 'historical_ga_success_default' && 'f8c9c0ea377a08b4c5c10a05c0558cda85d5a01a' || inputs.variant == 'historical_ga_highrate_336a973' && '336a97312e3e89219ad6179b196bfa99239cb13e' || inputs.variant == 'historical_ga_fresh_rechallenge' && '96787a7561f5e4b8786c2fda9cf3f8f1da0035bf' || inputs.variant == 'online_ads_ga_fresh_rechallenge' && '31dfe0e28e5da13645a455dba6737c19346faf63' || inputs.variant == 'online_ads_ga_production_fast_fail' && '875b0571d5b9c88b89a5bbc64f30488ee9565962' || inputs.variant == 'online_ads_ga_fresh_5s_recovery' && 'ae0745a95f73bec3ab24b9a5ce461bae1fa4a371' || inputs.variant == 'online_ads_ga_5s_hold_transplant' && '01086ae6d319a8bbf019ddb34267edd59ac7ec31' || (inputs.variant == 'release_5s_success_baseline' || inputs.variant == 'release_5s_success_attempt2') && '00b68437e041cbdcee2be209a18d7a5592f4c2dd' || (inputs.variant == 'offline_ads_like_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge') && '0838ef3a52c6eb337b0847762757d282b36b9e5e' || vars.PRIVATE_SOURCE_REF }}
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
           clean: true
@@ -440,11 +441,13 @@ jobs:
           grep -q 'FRESH_RECHALLENGE_ROUNDS' controllers/base_controller.py
 
       - name: Verify offline ADS profile pool source
-        if: ${{ inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' }}
+        if: ${{ inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ inputs.variant }}" = "offline_ads_pool_fresh_cookie_ab_v1" ]; then
+          if [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ]; then
+            expected=86fddc0eb129d30e1d4130be178cc2d2db146f6b
+          elif [ "${{ inputs.variant }}" = "offline_ads_pool_fresh_cookie_ab_v1" ]; then
             expected=c183e15554378a23b0a79e38eeeffb5173fa9a3a
           else
             expected=0838ef3a52c6eb337b0847762757d282b36b9e5e
@@ -467,6 +470,10 @@ jobs:
           if [ "${{ inputs.variant }}" = "offline_ads_pool_fresh_cookie_ab_v1" ]; then
             grep -q 'FRESH_CLEAR_SOLUTION_COOKIES' controllers/base_controller.py
             grep -q 'solution_cookie_policy' controllers/base_controller.py
+          fi
+          if [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ]; then
+            grep -q 'select_profile_index' tools/fetch_ads_profile_template.py
+            python3 -m unittest tools.test_fetch_ads_profile_template
           fi
 
       # Capture egress + denylist BEFORE heavy setup/stagger so bad prefixes exit in ~1 min.
@@ -851,14 +858,21 @@ jobs:
           PY
 
       - name: Apply offline ADS profile-pool fingerprint
-        if: ${{ (inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1') && steps.egress.outputs.should_probe != 'false' }}
+        if: ${{ (inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1') && steps.egress.outputs.should_probe != 'false' }}
         shell: bash
+        env:
+          PROFILE_SELECTION_SEED: ${{ inputs.orchestration_id != '' && inputs.orchestration_id || github.run_id }}
         run: |
           set -euo pipefail
           mkdir -p .ads-offline/generated Results/diagnostics
+          selection_args=()
+          if [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ]; then
+            selection_args=(--selection-seed "$PROFILE_SELECTION_SEED")
+          fi
           python3 tools/fetch_ads_profile_template.py \
             --offline-pool config.ads_offline_profile_pool.json \
             --slot "${{ matrix.attempt }}" \
+            "${selection_args[@]}" \
             --out .ads-offline/profile.json | tee Results/diagnostics/ads_offline_select.json
           python3 ads_like_cloak_profile_generator.py \
             --source-json .ads-offline/profile.json \
@@ -1879,7 +1893,7 @@ jobs:
               cmd=(./run_xvfb_natural_5s_transplant_1920.sh)
             elif [ "$variant" = "online_ads_ga_fresh_5s_recovery" ]; then
               cmd=(./run_xvfb_natural_fresh_5s_1920.sh)
-            elif [ "$variant" = "historical_ga_success_default" ] || [ "$variant" = "historical_ga_highrate_336a973" ] || [ "$variant" = "historical_ga_fresh_rechallenge" ] || [ "$variant" = "online_ads_ga_fresh_rechallenge" ] || [ "$variant" = "online_ads_ga_production_fast_fail" ] || [ "$variant" = "offline_ads_like_ga_fresh_rechallenge" ] || [ "$variant" = "offline_ads_pool_ga_fresh_rechallenge" ] || [ "$variant" = "offline_ads_pool_fresh_cookie_ab_v1" ]; then
+            elif [ "$variant" = "historical_ga_success_default" ] || [ "$variant" = "historical_ga_highrate_336a973" ] || [ "$variant" = "historical_ga_fresh_rechallenge" ] || [ "$variant" = "online_ads_ga_fresh_rechallenge" ] || [ "$variant" = "online_ads_ga_production_fast_fail" ] || [ "$variant" = "offline_ads_like_ga_fresh_rechallenge" ] || [ "$variant" = "offline_ads_pool_ga_fresh_rechallenge" ] || [ "$variant" = "offline_ads_pool_balanced_shuffle_v1" ] || [ "$variant" = "offline_ads_pool_fresh_cookie_ab_v1" ]; then
               cmd=(./run_xvfb_natural_1920.sh)
             else
               cmd=(./run_xvfb_natural_1920.sh)
@@ -2681,6 +2695,7 @@ jobs:
           ads_selection = ads_fetch
           if os.environ.get("VARIANT", "") in {
               "offline_ads_pool_ga_fresh_rechallenge",
+              "offline_ads_pool_balanced_shuffle_v1",
               "offline_ads_pool_fresh_cookie_ab_v1",
           }:
               ads_selection = ads_offline_select
@@ -2695,6 +2710,20 @@ jobs:
           ads_template_sha256 = str(ads_selection.get("template_sha256") or "")
           if not re.fullmatch(r"[0-9a-f]{64}", ads_template_sha256):
               ads_template_sha256 = None
+          ads_profile_selection_policy = str(
+              ads_selection.get("selection_policy") or ""
+          ) or None
+          if ads_profile_selection_policy not in {
+              None, "round_robin", "balanced_hash_v1"
+          }:
+              ads_profile_selection_policy = None
+          ads_profile_selection_seed_sha = str(
+              ads_selection.get("selection_seed_sha256_12") or ""
+          ) or None
+          if ads_profile_selection_seed_sha and not re.fullmatch(
+              r"[0-9a-f]{12}", ads_profile_selection_seed_sha
+          ):
+              ads_profile_selection_seed_sha = None
 
           fresh_session_restart_policy = os.environ.get(
               "FRESH_SESSION_RESTART_POLICY_INPUT", ""
@@ -3024,6 +3053,10 @@ jobs:
               "ads_profile_selected_index": ads_profile_selected_index,
               "ads_profile_source_slot": ads_profile_source_slot,
               "ads_template_sha256": ads_template_sha256,
+              "ads_profile_selection_policy": ads_profile_selection_policy,
+              "ads_profile_selection_seed_sha256_12": (
+                  ads_profile_selection_seed_sha
+              ),
               "sunbrowser_profile_state_policy": sunbrowser_profile_state_policy,
               "sunbrowser_profile_state_arm": sunbrowser_profile_state_arm,
               "sunbrowser_profile_state_assignment_rank": (
