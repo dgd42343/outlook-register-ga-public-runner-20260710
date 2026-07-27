@@ -8,6 +8,19 @@ WORKFLOW = ROOT / ".github" / "workflows" / "ctf-ga-service-abuse-auto.yml"
 
 
 class ServiceAbuseWorkflowContractTests(unittest.TestCase):
+    def test_approach_then_outer_treatment_and_private_source_are_pinned(self):
+        source = WORKFLOW.read_text(encoding="utf-8")
+
+        self.assertIn(
+            'NATURAL_HANDLER_INTERNAL_APPROACH_THEN_OUTER: "true"',
+            source,
+        )
+        self.assertEqual(
+            source.count("8d80679c07e6d6b204bd4a0975f63e4ee7068af9"),
+            2,
+        )
+        self.assertNotIn("4a10139bc1b39ff605f48080392fccc21592f425", source)
+
     def test_controller_overlay_identity_follows_pinned_private_commit(self):
         source = WORKFLOW.read_text(encoding="utf-8")
         start = source.index("      - name: Apply 875b057 pre-press guard overlay")

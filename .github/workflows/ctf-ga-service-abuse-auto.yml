@@ -144,6 +144,7 @@ jobs:
       RECOVERY_SLOT: ${{ matrix.slot }}
       NATURAL_STABLE_MINUS1_RETRY_AB: "true"
       NATURAL_STABLE_MINUS1_RETRY_MODE: "handler_internal"
+      NATURAL_HANDLER_INTERNAL_APPROACH_THEN_OUTER: "true"
       RECOVERY_RUNNER_LABEL: ${{ inputs.runner || 'ubuntu-22.04' }}
       BOOTSTRAP_PYTHON: ${{ (inputs.runner || 'ubuntu-22.04') == 'windows-2022' && 'python' || 'python3' }}
       VENV_PYTHON: ${{ (inputs.runner || 'ubuntu-22.04') == 'windows-2022' && '.venv/Scripts/python.exe' || '.venv/bin/python' }}
@@ -170,7 +171,7 @@ jobs:
       NATURAL_SAME_CHALLENGE_SETTLE_MODE: ${{ inputs.natural_same_challenge_settle_mode || 'control12' }}
       HSPROTECT_MAIN_ASSET_SHA256: ${{ inputs.hsprotect_main_asset_sha256 || '77aed42430ae5f8c15294950fc69c37fa1ca52cec4c32d50e890e8b80830b502' }}
       HSPROTECT_MAIN_ASSET_FAMILY_SHA256: "b8f8b46fe3c73ba6b1756d68b5233f4e76a8aff54e53455c4dd8f113f2935fca"
-      RECOVERY_SOURCE_REF: "4a10139bc1b39ff605f48080392fccc21592f425"
+      RECOVERY_SOURCE_REF: "8d80679c07e6d6b204bd4a0975f63e4ee7068af9"
     steps:
       - name: Reject GitHub UI re-runs
         if: github.run_attempt != 1
@@ -491,7 +492,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: "4a10139bc1b39ff605f48080392fccc21592f425"
+          ref: "8d80679c07e6d6b204bd4a0975f63e4ee7068af9"
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
 
