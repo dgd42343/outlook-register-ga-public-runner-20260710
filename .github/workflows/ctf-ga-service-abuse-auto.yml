@@ -75,6 +75,16 @@ on:
         description: "Natural-hold final PX561 treatment, including current_private_passthrough"
         required: true
         default: "current_private_passthrough"
+      natural_retry_generation_mode:
+        description: "Retry generation policy; slot_ab splits even slots by slot modulo 4"
+        required: true
+        default: "slot_ab"
+        type: choice
+        options:
+          - slot_ab
+          - same_challenge
+          - fresh_generation
+          - manual
       natural_w0_bridge:
         description: "Exercise the verified neutral-final to W0 bridge while keeping a natural 10s hold"
         required: true
@@ -107,17 +117,13 @@ on:
       recovery_source_ref:
         description: "Pinned private recovery-control source commit"
         required: true
-        default: "41aae75ace437ae26ba8334309570cd5e0afea98"
+        default: "2caa6bcd20bae0f263a8e8ab63cf41b458ab0fc0"
       egress_prefix_denylist:
         description: "Known-bad GA egress prefixes skipped before an account lease is acquired"
         required: false
         default: "4.,13.,20.,40.,52.,68.,74.249."
   schedule:
     - cron: "7,22,37,52 * * * *"
-
-concurrency:
-  group: service-abuse-auto-recovery
-  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -159,6 +165,7 @@ jobs:
       EXACT5S_FINAL_XGHM_START_INDEX: ${{ inputs.exact5s_final_xghm_start_index || '1' }}
       NATURAL_FINAL_PROOF_MODE: ${{ inputs.natural_final_proof_mode || 'current_private_passthrough' }}
       NATURAL_HOLD_PROFILE: ${{ (inputs.registration_natural_overlay || 'true') == 'true' && 'registration_875b_one_shot' || 'registration_10s' }}
+      NATURAL_RETRY_GENERATION_MODE: ${{ inputs.natural_retry_generation_mode || 'manual' }}
       NATURAL_W0_BRIDGE: ${{ inputs.natural_w0_bridge || 'false' }}
       NATURAL_FORCE_W0_AFTER_MINUS1: ${{ inputs.natural_force_w0_after_minus1 || 'false' }}
       NATURAL_SERVER_CHALLENGE_ROUNDS: ${{ inputs.natural_server_challenge_rounds || '3' }}
@@ -167,7 +174,7 @@ jobs:
       NATURAL_SAME_CHALLENGE_SETTLE_MODE: ${{ inputs.natural_same_challenge_settle_mode || 'control12' }}
       HSPROTECT_MAIN_ASSET_SHA256: ${{ inputs.hsprotect_main_asset_sha256 || '77aed42430ae5f8c15294950fc69c37fa1ca52cec4c32d50e890e8b80830b502' }}
       HSPROTECT_MAIN_ASSET_FAMILY_SHA256: "b8f8b46fe3c73ba6b1756d68b5233f4e76a8aff54e53455c4dd8f113f2935fca"
-      RECOVERY_SOURCE_REF: ${{ inputs.recovery_source_ref || '41aae75ace437ae26ba8334309570cd5e0afea98' }}
+      RECOVERY_SOURCE_REF: ${{ inputs.recovery_source_ref || '2caa6bcd20bae0f263a8e8ab63cf41b458ab0fc0' }}
     steps:
       - name: Reject GitHub UI re-runs
         if: github.run_attempt != 1
@@ -201,6 +208,55 @@ jobs:
           )
           if not valid:
               raise SystemExit("job_slots_json must contain 1-100 unique integer slots in range 1..200")
+          generation_mode = os.environ.get("NATURAL_RETRY_GENERATION_MODE", "")
+          if generation_mode not in {
+              "slot_ab", "same_challenge", "fresh_generation", "manual"
+          }:
+              raise SystemExit(
+                  "natural_retry_generation_mode must be slot_ab, same_challenge, "
+                  "fresh_generation, or manual"
+              )
+          if generation_mode in {"slot_ab", "same_challenge"} and any(
+              int(slot) % 2 for slot in slots
+          ):
+              raise SystemExit(
+                  "slot_ab and same_challenge require even slots so the existing "
+                  "stable-minus1 treatment arm remains active"
+              )
+          if generation_mode == "slot_ab":
+              generation_arm = (
+                  "fresh_generation" if current % 4 == 2 else "same_challenge"
+              )
+          else:
+              generation_arm = generation_mode
+          generation_policies = {
+              "same_challenge": ("false", "false", "3", "3"),
+              "fresh_generation": ("true", "true", "2", "2"),
+          }
+          if generation_arm in generation_policies:
+              bridge_value, force_value, rounds_value, attempts_value = (
+                  generation_policies[generation_arm]
+              )
+              os.environ["NATURAL_W0_BRIDGE"] = bridge_value
+              os.environ["NATURAL_FORCE_W0_AFTER_MINUS1"] = force_value
+              os.environ["NATURAL_SERVER_CHALLENGE_ROUNDS"] = rounds_value
+              os.environ["NATURAL_SAME_CHALLENGE_HOLD_ATTEMPTS"] = attempts_value
+          else:
+              bridge_value = os.environ.get("NATURAL_W0_BRIDGE", "")
+              force_value = os.environ.get("NATURAL_FORCE_W0_AFTER_MINUS1", "")
+              rounds_value = os.environ.get("NATURAL_SERVER_CHALLENGE_ROUNDS", "")
+              attempts_value = os.environ.get(
+                  "NATURAL_SAME_CHALLENGE_HOLD_ATTEMPTS", ""
+              )
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as fh:
+              fh.write(
+                  f"NATURAL_RETRY_GENERATION_ARM={generation_arm}\n"
+                  f"NATURAL_W0_BRIDGE={bridge_value}\n"
+                  f"NATURAL_FORCE_W0_AFTER_MINUS1={force_value}\n"
+                  f"NATURAL_SERVER_CHALLENGE_ROUNDS={rounds_value}\n"
+                  "NATURAL_SAME_CHALLENGE_HOLD_ATTEMPTS="
+                  f"{attempts_value}\n"
+              )
           source_ref = os.environ.get("RECOVERY_SOURCE_REF", "")
           if not re.fullmatch(r"[0-9a-f]{40}", source_ref):
               raise SystemExit("recovery_source_ref must be an exact lowercase 40-hex commit")
@@ -333,12 +389,12 @@ jobs:
               or human_mode != "natural10"
               or bridge != "true"
               or force_minus1 != "true"
-              or rounds != 3
+              or rounds != 2
               or runner_label != "ubuntu-22.04"
           ):
               raise SystemExit(
                   "two same-challenge natural holds require the registration overlay "
-                  "natural10 bridge+force three-round treatment on ubuntu-22.04"
+                  "natural10 bridge+force two-round treatment on ubuntu-22.04"
               )
           if same_challenge_hold_attempts == 3 and (
               registration_natural_overlay != "true"
@@ -369,7 +425,7 @@ jobs:
               )
           registration_challenge_policy = (bridge, force_minus1, rounds)
           registration_challenge_control = ("false", "false", 1)
-          registration_challenge_rounds3 = ("true", "true", 3)
+          registration_challenge_rounds2 = ("true", "true", 2)
           registration_challenge_rounds3_equivalent = ("false", "false", 3)
           if registration_natural_overlay == "true" and (
               historical_overlay != "false"
@@ -378,7 +434,7 @@ jobs:
               or mode not in {"minimal_natural_hold", "current_private_passthrough"}
               or registration_challenge_policy not in {
                   registration_challenge_control,
-                  registration_challenge_rounds3,
+                  registration_challenge_rounds2,
                   registration_challenge_rounds3_equivalent,
               }
               or release_mode != "cdp_up"
@@ -391,7 +447,7 @@ jobs:
                   "registration natural overlay requires natural10, "
                   "a supported registration final-proof mode, untouched exact5s controls, and either "
                   "the one-round no-W0 control, the bounded bridge+force "
-                  "three-round treatment, or the no-W0 registration-equivalent "
+                  "two-round treatment, or the no-W0 registration-equivalent "
                   "three-round treatment"
               )
           if mode in {"minimal_natural_hold", "current_private_passthrough"} and registration_natural_overlay != "true":
@@ -420,6 +476,10 @@ jobs:
           print(f"exact5s final XGhm start index={xghm_start}")
           print(f"natural final proof mode={mode}")
           print(f"natural hold profile={natural_hold_profile}")
+          print(
+              "natural retry generation "
+              f"mode={generation_mode} arm={generation_arm}"
+          )
           print(f"natural W0 bridge={bridge}")
           print(f"natural force W0 after minus1={force_minus1}")
           print(f"natural server challenge rounds={rounds}")
@@ -435,7 +495,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.recovery_source_ref || '41aae75ace437ae26ba8334309570cd5e0afea98' }}
+          ref: ${{ inputs.recovery_source_ref || '2caa6bcd20bae0f263a8e8ab63cf41b458ab0fc0' }}
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
 
@@ -1425,6 +1485,8 @@ jobs:
               "exact5s_final_xghm_start_index": int(os.environ.get("EXACT5S_FINAL_XGHM_START_INDEX") or 1),
               "natural_final_proof_mode": os.environ.get("NATURAL_FINAL_PROOF_MODE") or None,
               "natural_hold_profile": os.environ.get("NATURAL_HOLD_PROFILE") or None,
+              "natural_retry_generation_mode": os.environ.get("NATURAL_RETRY_GENERATION_MODE") or None,
+              "natural_retry_generation_arm": os.environ.get("NATURAL_RETRY_GENERATION_ARM") or None,
               "natural_w0_bridge": os.environ.get("NATURAL_W0_BRIDGE") == "true",
               "natural_force_w0_after_minus1": os.environ.get("NATURAL_FORCE_W0_AFTER_MINUS1") == "true",
               "natural_server_challenge_rounds": int(os.environ.get("NATURAL_SERVER_CHALLENGE_ROUNDS") or 1),
