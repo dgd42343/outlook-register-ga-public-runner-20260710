@@ -24,7 +24,7 @@ on:
         required: true
         default: "500"
       job_slots_json:
-        description: "Bounded fresh-runner slots; production uses four slots to survive denied GA egress"
+        description: "Bounded fresh-runner slots; up to 100 unique slots in range 1..200"
         required: true
         default: "[1,2,3,4]"
       recovery_network_mode:
@@ -107,7 +107,7 @@ on:
       recovery_source_ref:
         description: "Pinned private recovery-control source commit"
         required: true
-        default: "c1dd33edd9fd08667f66574bac26d3a10156f5c3"
+        default: "3776deb30a7e50456032f85b3ce44fb4a9f09dc1"
       egress_prefix_denylist:
         description: "Known-bad GA egress prefixes skipped before an account lease is acquired"
         required: false
@@ -167,7 +167,7 @@ jobs:
       NATURAL_SAME_CHALLENGE_SETTLE_MODE: ${{ inputs.natural_same_challenge_settle_mode || 'control12' }}
       HSPROTECT_MAIN_ASSET_SHA256: ${{ inputs.hsprotect_main_asset_sha256 || '77aed42430ae5f8c15294950fc69c37fa1ca52cec4c32d50e890e8b80830b502' }}
       HSPROTECT_MAIN_ASSET_FAMILY_SHA256: "b8f8b46fe3c73ba6b1756d68b5233f4e76a8aff54e53455c4dd8f113f2935fca"
-      RECOVERY_SOURCE_REF: ${{ inputs.recovery_source_ref || 'c1dd33edd9fd08667f66574bac26d3a10156f5c3' }}
+      RECOVERY_SOURCE_REF: ${{ inputs.recovery_source_ref || '3776deb30a7e50456032f85b3ce44fb4a9f09dc1' }}
     steps:
       - name: Reject GitHub UI re-runs
         if: github.run_attempt != 1
@@ -194,13 +194,13 @@ jobs:
           current = int(os.environ["RECOVERY_SLOT"])
           valid = (
               isinstance(slots, list)
-              and 1 <= len(slots) <= 20
-              and all(type(item) is int and 1 <= item <= 20 for item in slots)
+              and 1 <= len(slots) <= 100
+              and all(type(item) is int and 1 <= item <= 200 for item in slots)
               and len(set(slots)) == len(slots)
               and current in slots
           )
           if not valid:
-              raise SystemExit("job_slots_json must contain 1-20 unique integer slots in range 1..20")
+              raise SystemExit("job_slots_json must contain 1-100 unique integer slots in range 1..200")
           source_ref = os.environ.get("RECOVERY_SOURCE_REF", "")
           if not re.fullmatch(r"[0-9a-f]{40}", source_ref):
               raise SystemExit("recovery_source_ref must be an exact lowercase 40-hex commit")
@@ -435,7 +435,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.recovery_source_ref || 'c1dd33edd9fd08667f66574bac26d3a10156f5c3' }}
+          ref: ${{ inputs.recovery_source_ref || '3776deb30a7e50456032f85b3ce44fb4a9f09dc1' }}
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
 
