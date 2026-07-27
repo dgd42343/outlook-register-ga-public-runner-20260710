@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       timeout_minutes:
-        description: "Whole fresh-runner timeout"
+        description: "Whole timeout; minutes above 30 fund bounded account-lease waiting"
         required: true
         default: "30"
       runner:
@@ -142,6 +142,7 @@ jobs:
       GA_COORDINATOR_TOKEN: ${{ secrets.GA_COORDINATOR_TOKEN }}
       SERVICE_ABUSE_EXPERIMENT_KEY: ${{ secrets.SERVICE_ABUSE_EXPERIMENT_KEY }}
       RECOVERY_SLOT: ${{ matrix.slot }}
+      RECOVERY_TIMEOUT_MINUTES: ${{ inputs.timeout_minutes || '30' }}
       NATURAL_STABLE_MINUS1_RETRY_AB: "true"
       NATURAL_STABLE_MINUS1_RETRY_MODE: "handler_internal"
       NATURAL_HANDLER_INTERNAL_APPROACH_THEN_OUTER: "true"
@@ -171,7 +172,7 @@ jobs:
       NATURAL_SAME_CHALLENGE_SETTLE_MODE: ${{ inputs.natural_same_challenge_settle_mode || 'control12' }}
       HSPROTECT_MAIN_ASSET_SHA256: ${{ inputs.hsprotect_main_asset_sha256 || '77aed42430ae5f8c15294950fc69c37fa1ca52cec4c32d50e890e8b80830b502' }}
       HSPROTECT_MAIN_ASSET_FAMILY_SHA256: "b8f8b46fe3c73ba6b1756d68b5233f4e76a8aff54e53455c4dd8f113f2935fca"
-      RECOVERY_SOURCE_REF: "f8daad702d7254e852104ee48c11625eceb6f8ef"
+      RECOVERY_SOURCE_REF: "c88dd119de7ac1a8431a72ecfc3d050f12870cef"
     steps:
       - name: Reject GitHub UI re-runs
         if: github.run_attempt != 1
@@ -205,6 +206,14 @@ jobs:
           )
           if not valid:
               raise SystemExit("job_slots_json must contain 1-100 unique integer slots in range 1..200")
+          timeout_minutes = int(os.environ.get("RECOVERY_TIMEOUT_MINUTES", "0"))
+          if not 30 <= timeout_minutes <= 150:
+              raise SystemExit("timeout_minutes must be in range 30..150")
+          lease_wait_seconds = (timeout_minutes - 30) * 60
+          if not 0 <= lease_wait_seconds <= 7200:
+              raise SystemExit("derived lease wait must be in range 0..7200")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as fh:
+              fh.write(f"RECOVERY_LEASE_WAIT_SECONDS={lease_wait_seconds}\n")
           generation_mode = os.environ.get("NATURAL_RETRY_GENERATION_MODE", "")
           if generation_mode not in {
               "slot_ab", "same_challenge", "fresh_generation", "manual"
@@ -486,13 +495,17 @@ jobs:
               f"mode={settle_mode} arm={settle_arm} seconds={settle_seconds}"
           )
           print(f"natural same-challenge physical hold limit={physical_hold_limit}")
+          print(
+              "recovery lease wait "
+              f"seconds={lease_wait_seconds} timeout_minutes={timeout_minutes}"
+          )
           PY
 
       - name: Checkout private recovery control plane
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: "f8daad702d7254e852104ee48c11625eceb6f8ef"
+          ref: "c88dd119de7ac1a8431a72ecfc3d050f12870cef"
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
 
@@ -1158,7 +1171,8 @@ jobs:
             --lease-output "$private/lease.json" \
             --safe-output "$safe" \
             --max-candidates "$MAX_CANDIDATES" \
-            --lease-ttl-seconds "$LEASE_TTL_SECONDS"
+            --lease-ttl-seconds "$LEASE_TTL_SECONDS" \
+            --lease-wait-seconds "$RECOVERY_LEASE_WAIT_SECONDS"
           SAFE="$safe" "$VENV_PYTHON" - <<'PY'
           import json, os
           row = json.load(open(os.environ["SAFE"], encoding="utf-8"))
@@ -1545,6 +1559,13 @@ jobs:
                   os.environ.get("HSPROTECT_ASSET_REASON") or None
               ),
               "leased": bool(lease.get("leased")),
+              "lease_wait_budget_seconds": int(
+                  os.environ.get("RECOVERY_LEASE_WAIT_SECONDS") or 0
+              ),
+              "lease_wait_rounds": int(lease.get("lease_wait_rounds") or 0),
+              "lease_waited_ms": int(lease.get("lease_waited_ms") or 0),
+              "lease_retry_after_ms": int(lease.get("retry_after_ms") or 0),
+              "lease_reason": lease.get("reason") or None,
               "account_id": int(lease.get("account_id") or 0) or None,
               "attempt_number": int(lease.get("attempt_number") or 0) or None,
               "candidate_count": int(lease.get("candidate_count") or 0),

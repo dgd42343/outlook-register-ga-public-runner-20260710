@@ -16,7 +16,7 @@ class ServiceAbuseWorkflowContractTests(unittest.TestCase):
             source,
         )
         self.assertEqual(
-            source.count("f8daad702d7254e852104ee48c11625eceb6f8ef"),
+            source.count("c88dd119de7ac1a8431a72ecfc3d050f12870cef"),
             2,
         )
         self.assertNotIn("ede1e7150e90cd7c0e11d3d217085f57c4176db2", source)
@@ -46,6 +46,19 @@ class ServiceAbuseWorkflowContractTests(unittest.TestCase):
             ],
         )
         self.assertEqual(re.findall(r"\b[0-9a-f]{64}\b", apply_step), [])
+
+    def test_bounded_lease_wait_is_explicit_and_observable(self):
+        source = WORKFLOW.read_text(encoding="utf-8")
+
+        self.assertIn("timeout_minutes must be in range 30..150", source)
+        self.assertIn("lease_wait_seconds = (timeout_minutes - 30) * 60", source)
+        self.assertIn("RECOVERY_LEASE_WAIT_SECONDS={lease_wait_seconds}", source)
+        self.assertIn(
+            '--lease-wait-seconds "$RECOVERY_LEASE_WAIT_SECONDS"',
+            source,
+        )
+        self.assertIn('"lease_wait_rounds": int(', source)
+        self.assertIn('"lease_waited_ms": int(', source)
 
 
 if __name__ == "__main__":
