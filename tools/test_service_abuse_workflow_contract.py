@@ -16,10 +16,10 @@ class ServiceAbuseWorkflowContractTests(unittest.TestCase):
             source,
         )
         self.assertEqual(
-            source.count("8d80679c07e6d6b204bd4a0975f63e4ee7068af9"),
+            source.count("ede1e7150e90cd7c0e11d3d217085f57c4176db2"),
             2,
         )
-        self.assertNotIn("4a10139bc1b39ff605f48080392fccc21592f425", source)
+        self.assertNotIn("8d80679c07e6d6b204bd4a0975f63e4ee7068af9", source)
 
     def test_controller_overlay_identity_follows_pinned_private_commit(self):
         source = WORKFLOW.read_text(encoding="utf-8")
