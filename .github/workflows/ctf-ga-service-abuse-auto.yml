@@ -171,7 +171,7 @@ jobs:
       NATURAL_SAME_CHALLENGE_SETTLE_MODE: ${{ inputs.natural_same_challenge_settle_mode || 'control12' }}
       HSPROTECT_MAIN_ASSET_SHA256: ${{ inputs.hsprotect_main_asset_sha256 || '77aed42430ae5f8c15294950fc69c37fa1ca52cec4c32d50e890e8b80830b502' }}
       HSPROTECT_MAIN_ASSET_FAMILY_SHA256: "b8f8b46fe3c73ba6b1756d68b5233f4e76a8aff54e53455c4dd8f113f2935fca"
-      RECOVERY_SOURCE_REF: "42a95549f4ab63db8ebf279d3865e89b0f72bfe0"
+      RECOVERY_SOURCE_REF: "71a3c4b53b02488f71b748e8991e85c9d567275a"
     steps:
       - name: Reject GitHub UI re-runs
         if: github.run_attempt != 1
@@ -492,7 +492,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: "42a95549f4ab63db8ebf279d3865e89b0f72bfe0"
+          ref: "71a3c4b53b02488f71b748e8991e85c9d567275a"
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
 
@@ -529,14 +529,14 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:runtime_overlays/protocol_runtime_probe_875b057.py)" = \
-            'c1bea5062a2886e4c33c7eccb3dcd6fd55e86ba7'
+            '14255bddf704d3f33ff8b30194016a105042e305'
           "$BOOTSTRAP_PYTHON" - <<'PY'
           import hashlib
           from pathlib import Path
 
           source = Path("runtime_overlays/protocol_runtime_probe_875b057.py")
           actual = hashlib.sha256(source.read_bytes()).hexdigest()
-          expected = "502cd15aa6ddc7a3a583ef34dab83caba28bbfdfd611ec5ee22b22fe322dbd6b"
+          expected = "a6cd0ef7634392c5dd944dcc3ffaeb8ab5156a1c25fb5ac9168e09339743f141"
           if actual != expected:
               raise SystemExit(f"registration natural protocol overlay mismatch: {actual}")
           print(f"registration natural protocol overlay verified sha256={actual}")
@@ -1229,7 +1229,7 @@ jobs:
             actual_protocol_sha256=$("$GITHUB_WORKSPACE/$VENV_PYTHON" -c \
               'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' \
               "$protocol_source")
-            test "$actual_protocol_sha256" = '502cd15aa6ddc7a3a583ef34dab83caba28bbfdfd611ec5ee22b22fe322dbd6b'
+            test "$actual_protocol_sha256" = 'a6cd0ef7634392c5dd944dcc3ffaeb8ab5156a1c25fb5ac9168e09339743f141'
           fi
           cp "$GITHUB_WORKSPACE/tools/service_abuse_recovery.py" "$runtime/tools/service_abuse_recovery.py"
           cp "$protocol_source" "$runtime/protocol_runtime_probe.py"
@@ -1453,7 +1453,7 @@ jobs:
               ),
               "registration_natural_overlay": os.environ.get("REGISTRATION_NATURAL_OVERLAY") == "true",
               "registration_natural_protocol_sha256": (
-                  "502cd15aa6ddc7a3a583ef34dab83caba28bbfdfd611ec5ee22b22fe322dbd6b"
+                  "a6cd0ef7634392c5dd944dcc3ffaeb8ab5156a1c25fb5ac9168e09339743f141"
                   if os.environ.get("REGISTRATION_NATURAL_OVERLAY") == "true"
                   else None
               ),
