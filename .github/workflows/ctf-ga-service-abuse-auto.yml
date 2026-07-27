@@ -635,15 +635,17 @@ jobs:
           overlay="$GITHUB_WORKSPACE/runtime_overlays/patchright_controller_875b057_pre_press_guard.py"
           test "$(git -C "$runtime" rev-parse HEAD:controllers/patchright_controller.py)" = \
             'dbf139e1c63cdbabb08262b75c797244cddb4a15'
-          test "$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD:runtime_overlays/patchright_controller_875b057_pre_press_guard.py)" = \
-            'b43fc340bba63b237158ea37daa4d0b6d0a3f154'
-          test "$(sha256sum "$overlay" | cut -d' ' -f1)" = \
-            '390acdec447dae8735373525384e48418bd4052c4c0d1b32bc4a2aa974e691a5'
+          overlay_blob=$(git -C "$GITHUB_WORKSPACE" rev-parse \
+            HEAD:runtime_overlays/patchright_controller_875b057_pre_press_guard.py)
+          overlay_sha=$(sha256sum "$overlay" | cut -d' ' -f1)
+          test "$(git -C "$GITHUB_WORKSPACE" hash-object --no-filters \
+            runtime_overlays/patchright_controller_875b057_pre_press_guard.py)" = \
+            "$overlay_blob"
           cp "$overlay" "$runtime/controllers/patchright_controller.py"
-          test "$(git -C "$runtime" hash-object controllers/patchright_controller.py)" = \
-            'b43fc340bba63b237158ea37daa4d0b6d0a3f154'
+          test "$(git -C "$runtime" hash-object --no-filters controllers/patchright_controller.py)" = \
+            "$overlay_blob"
           test "$(sha256sum "$runtime/controllers/patchright_controller.py" | cut -d' ' -f1)" = \
-            '390acdec447dae8735373525384e48418bd4052c4c0d1b32bc4a2aa974e691a5'
+            "$overlay_sha"
           grep -Fq '_supports_hold_pre_press_guard = True' \
             "$runtime/controllers/patchright_controller.py"
           grep -Fq 'pre_press_guard_running' \
@@ -651,8 +653,8 @@ jobs:
           "$BOOTSTRAP_PYTHON" -m py_compile "$runtime/controllers/patchright_controller.py"
           echo "applied=true" >> "$GITHUB_OUTPUT"
           echo "base_blob=dbf139e1c63cdbabb08262b75c797244cddb4a15" >> "$GITHUB_OUTPUT"
-          echo "derived_blob=b43fc340bba63b237158ea37daa4d0b6d0a3f154" >> "$GITHUB_OUTPUT"
-          echo "derived_sha256=390acdec447dae8735373525384e48418bd4052c4c0d1b32bc4a2aa974e691a5" >> "$GITHUB_OUTPUT"
+          echo "derived_blob=$overlay_blob" >> "$GITHUB_OUTPUT"
+          echo "derived_sha256=$overlay_sha" >> "$GITHUB_OUTPUT"
 
       - name: Restore precompiled GA runtime
         if: steps.runner_egress.outputs.prepare == 'true' && runner.os == 'Linux'
