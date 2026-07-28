@@ -1,0 +1,172 @@
+name: CTF GA scheduled registration dispatcher
+
+on:
+  schedule:
+    # Keep the former recovery cadence, but dispatch the registration workflow
+    # instead. GitHub evaluates schedules from the default branch only.
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+    inputs:
+      node_slots_json:
+        description: "Registration matrix slots (JSON array, max 100)"
+        required: false
+        default: "[1,2,3,4,5]"
+      variant:
+        description: "Registration workflow variant"
+        required: false
+        default: "online_ads_ga_production_fast_fail"
+      dry_run:
+        description: "Validate and report without dispatching registration"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ctf-ga-scheduled-registration-dispatch
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch-registration:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_REPOSITORY: ${{ github.repository }}
+      TARGET_REF: ${{ github.event.repository.default_branch }}
+      SLOTS_JSON: ${{ inputs.node_slots_json || vars.REGISTRATION_AUTO_SLOTS_JSON || '[1,2,3,4,5]' }}
+      VARIANT: ${{ inputs.variant || vars.REGISTRATION_AUTO_VARIANT || 'online_ads_ga_production_fast_fail' }}
+      DRY_RUN: ${{ inputs.dry_run || 'false' }}
+    steps:
+      - name: Validate schedule and dispatch one registration run
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TARGET_REPOSITORY TARGET_REF SLOTS_JSON VARIANT DRY_RUN
+
+          # Validate operator-controlled values before putting them into an
+          # Actions API request. This keeps a malformed repository variable
+          # from creating an unbounded or non-registration matrix.
+          python3 - <<'PY'
+          import json
+          import os
+
+          slots_raw = os.environ.get("SLOTS_JSON", "")
+          try:
+              slots = json.loads(slots_raw)
+          except json.JSONDecodeError as exc:
+              raise SystemExit(f"invalid SLOTS_JSON: {exc}")
+          if not isinstance(slots, list) or not slots:
+              raise SystemExit("SLOTS_JSON must be a non-empty JSON array")
+          if len(slots) > 100:
+              raise SystemExit("SLOTS_JSON may contain at most 100 slots")
+          normalized = []
+          for value in slots:
+              if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 200:
+                  raise SystemExit(f"slot must be an integer in 1..200: {value!r}")
+              normalized.append(value)
+          if len(set(normalized)) != len(normalized):
+              raise SystemExit("SLOTS_JSON contains duplicate slots")
+
+          variant = os.environ.get("VARIANT", "")
+          allowed = {
+              "online_ads_ga_production_fast_fail",
+              "online_ads_ga_fresh_rechallenge",
+              "online_ads_ga_fresh_5s_recovery",
+              "offline_ads_pool_ga_fresh_rechallenge",
+          }
+          if variant not in allowed:
+              raise SystemExit(f"scheduled registration variant is not allowed: {variant!r}")
+
+          if os.environ.get("DRY_RUN", "false").lower() not in {"true", "false"}:
+              raise SystemExit("DRY_RUN must be true or false")
+
+          print(json.dumps({"slots": len(normalized), "variant": variant}, ensure_ascii=False))
+          PY
+
+          active_count="$(gh api \
+            "repos/${TARGET_REPOSITORY}/actions/workflows/ctf-ga-own-ip-pool.yml/runs?branch=${TARGET_REF}&per_page=20" \
+            --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
+          if ! [[ "$active_count" =~ ^[0-9]+$ ]]; then
+            echo "could not determine active registration runs" >&2
+            exit 1
+          fi
+          if [ "$active_count" -gt 0 ]; then
+            echo "registration run already active; skip this schedule (active_count=$active_count)"
+            {
+              echo "## Scheduled registration"
+              echo
+              echo "Skipped: an existing `ctf-ga-own-ip-pool.yml` run is queued or in progress (count=$active_count)."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          payload="$(python3 - <<'PY'
+          import json
+          import os
+
+          slots = json.loads(os.environ["SLOTS_JSON"])
+          payload = {
+              "ref": os.environ["TARGET_REF"],
+              "inputs": {
+                  "node_slots_json": json.dumps(slots, separators=(",", ":")),
+                  "orchestration_id": f"scheduled-registration-{os.environ['GITHUB_RUN_ID']}",
+                  "ads_profile_policy": "round_robin",
+                  "fresh_session_restart_policy": "off",
+                  "network_mode": "ga_own_ip",
+                  "variant": os.environ["VARIANT"],
+                  "runner": "ubuntu-22.04",
+                  "timeout_minutes": "30",
+                  "probe_timeout_minutes": "18",
+                  "fresh_absolute_timeout_seconds": "60",
+                  "per_ip_max_registrations": "1",
+                  "egress_prefix_denylist": "4.,13.,20.,40.,52.,68.,74.249.",
+                  "pre_first_hold_warmup_ms": "",
+                  "pre_first_hold_warmup_policy": "fixed_input",
+                  "signup_country_policy": "source_default",
+                  "signup_dob_policy": "source_default",
+                  "email_domain_policy": "source_default",
+                  "slot_stagger_seconds": "12",
+                  "coordinator_mode": "final_only",
+                  "max_parallel": "20",
+                  "runtime_mode": "prebuilt",
+                  "runtime_cache_revision": "v1",
+                  "stop_on_rechallenge": "0",
+                  "primary_final_variant": "",
+                  "proxy_pool_file": "",
+              },
+          }
+          print(json.dumps(payload, separators=(",", ":")))
+          PY
+          )"
+
+          if [ "${DRY_RUN,,}" = "true" ]; then
+            echo "dry_run=true; registration dispatch payload validated but not sent"
+            {
+              echo "## Scheduled registration"
+              echo
+              echo "Dry run: payload validated; no registration workflow was dispatched."
+              echo
+              echo '```json'
+              echo "$payload" | python3 -m json.tool
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          gh api \
+            --method POST \
+            "repos/${TARGET_REPOSITORY}/actions/workflows/ctf-ga-own-ip-pool.yml/dispatches" \
+            --input - <<<"$payload"
+          echo "registration workflow dispatched on ref=${TARGET_REF} slots=${SLOTS_JSON} variant=${VARIANT}"
+          {
+            echo "## Scheduled registration"
+            echo
+            echo "Dispatched `ctf-ga-own-ip-pool.yml` on `${TARGET_REF}`."
+            echo "- slots: `${SLOTS_JSON}`"
+            echo "- variant: `${VARIANT}`"
+            echo "- cadence: `7,22,37,52 * * * *` (UTC)"
+          } >> "$GITHUB_STEP_SUMMARY"
