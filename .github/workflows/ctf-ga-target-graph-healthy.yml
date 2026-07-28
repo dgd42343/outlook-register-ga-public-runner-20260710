@@ -8,17 +8,21 @@ on:
         required: true
         default: "100"
       batch_slots:
-        description: "Fresh GA slots per child shard (1-20; shards continue until target/cap)"
+        description: "Fresh GA slots per child matrix (1-100; max-parallel keeps rolling refill bounded)"
         required: true
-        default: "20"
+        default: "100"
       min_batch_slots:
         description: "Minimum adaptive backfill batch after the first batch"
         required: true
-        default: "5"
+        default: "100"
       max_dispatched:
         description: "Hard cap across all child batches"
         required: true
-        default: "400"
+        default: "5000"
+      duration_minutes:
+        description: "Stop dispatching new child matrices after this many elapsed minutes; 0 disables the timebox"
+        required: true
+        default: "300"
       child_ref:
         description: "Public-runner ref used for child dispatches; empty follows this orchestrator run's ref"
         required: false
@@ -76,6 +80,7 @@ jobs:
             --batch-slots "${{ inputs.batch_slots }}" \
             --min-batch-slots "${{ inputs.min_batch_slots }}" \
             --max-dispatched "${{ inputs.max_dispatched }}" \
+            --duration-minutes "${{ inputs.duration_minutes }}" \
             --child-timeout-minutes "${{ inputs.child_timeout_minutes }}" \
             --poll-seconds "${{ inputs.poll_seconds }}" \
             --orchestration-id "ga-target-${{ github.run_id }}" \
@@ -105,6 +110,10 @@ jobs:
               f"- success: `{bool(data.get('success'))}`",
               f"- target: `{data.get('target_graph_healthy')}`",
               f"- achieved Graph healthy: `{data.get('achieved_graph_healthy')}`",
+              f"- timebox complete: `{bool(data.get('timebox_complete'))}`",
+              f"- duration limit minutes: `{data.get('duration_minutes_limit')}`",
+              f"- elapsed minutes: `{data.get('elapsed_minutes')}`",
+              f"- terminal reason: `{data.get('terminal_reason')}`",
               f"- dispatched: `{totals.get('dispatched', 0)}`",
               f"- live: `{totals.get('live', 0)}`",
               f"- strict CreateAccount: `{totals.get('strict_create_account', 0)}`",

@@ -69,9 +69,28 @@ class DispatchDefaultsTests(unittest.TestCase):
         )
         self.assertEqual(args.variant, "offline_ads_pool_balanced_shuffle_v1")
         self.assertEqual(args.runner, "ubuntu-24.04")
-        self.assertEqual(args.batch_slots, 20)
+        self.assertEqual(args.batch_slots, 100)
 
-    def test_rejects_child_shards_larger_than_twenty_slots(self):
+    def test_accepts_one_hundred_slot_rolling_matrix(self):
+        args = parse_args(
+            [
+                "--repo",
+                "a/b",
+                "--target-graph-healthy",
+                "1",
+                "--batch-slots",
+                "100",
+                "--min-batch-slots",
+                "100",
+                "--duration-minutes",
+                "300",
+                "--dry-run",
+            ]
+        )
+        self.assertEqual(args.batch_slots, 100)
+        self.assertEqual(args.duration_minutes, 300)
+
+    def test_rejects_child_matrices_larger_than_one_hundred_slots(self):
         with self.assertRaises(SystemExit):
             parse_args(
                 [
@@ -80,7 +99,21 @@ class DispatchDefaultsTests(unittest.TestCase):
                     "--target-graph-healthy",
                     "1",
                     "--batch-slots",
-                    "21",
+                    "101",
+                    "--dry-run",
+                ]
+            )
+
+    def test_rejects_negative_duration(self):
+        with self.assertRaises(SystemExit):
+            parse_args(
+                [
+                    "--repo",
+                    "a/b",
+                    "--target-graph-healthy",
+                    "1",
+                    "--duration-minutes",
+                    "-1",
                     "--dry-run",
                 ]
             )

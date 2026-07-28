@@ -35,6 +35,14 @@ def utc_now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
 
+def elapsed_minutes(started_monotonic: float) -> float:
+    return max(0.0, (time.monotonic() - started_monotonic) / 60)
+
+
+def timebox_expired(*, started_monotonic: float, duration_minutes: int) -> bool:
+    return duration_minutes > 0 and elapsed_minutes(started_monotonic) >= duration_minutes
+
+
 def write_json_atomic(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -457,9 +465,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--runner", choices=("ubuntu-24.04", "ubuntu-22.04"), default="ubuntu-24.04"
     )
     parser.add_argument("--target-graph-healthy", type=int, required=True)
-    parser.add_argument("--batch-slots", type=int, default=20)
+    parser.add_argument("--batch-slots", type=int, default=100)
     parser.add_argument("--min-batch-slots", type=int, default=5)
     parser.add_argument("--max-dispatched", type=int, default=400)
+    parser.add_argument(
+        "--duration-minutes",
+        type=int,
+        default=0,
+        help="stop dispatching new child matrices after this elapsed time; 0 disables",
+    )
     parser.add_argument("--poll-seconds", type=int, default=20)
     parser.add_argument("--child-timeout-minutes", type=int, default=45)
     parser.add_argument("--orchestration-id", default="")
@@ -473,12 +487,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         parser.error("--repo or GITHUB_REPOSITORY is required")
     if args.target_graph_healthy < 1:
         parser.error("--target-graph-healthy must be positive")
-    if not 1 <= args.batch_slots <= 20:
-        parser.error("--batch-slots must be between 1 and 20")
+    if not 1 <= args.batch_slots <= 100:
+        parser.error("--batch-slots must be between 1 and 100")
     if not 1 <= args.min_batch_slots <= args.batch_slots:
         parser.error("--min-batch-slots must be between 1 and --batch-slots")
     if args.max_dispatched < 1:
         parser.error("--max-dispatched must be positive")
+    if args.duration_minutes < 0:
+        parser.error("--duration-minutes must be zero or positive")
     if args.poll_seconds < 5:
         parser.error("--poll-seconds must be at least 5")
     if args.child_timeout_minutes < 5:
@@ -488,8 +504,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
+    started_monotonic = time.monotonic()
+    started_at = dt.datetime.now(dt.timezone.utc)
     orchestration_id = args.orchestration_id or (
-        "ga-target-" + dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        "ga-target-" + started_at.strftime("%Y%m%dT%H%M%SZ")
+    )
+    deadline_at = (
+        started_at + dt.timedelta(minutes=args.duration_minutes)
+        if args.duration_minutes > 0
+        else None
     )
     state: dict[str, Any] = {
         "schema": 1,
@@ -503,7 +526,12 @@ def main(argv: list[str] | None = None) -> int:
         "batch_slots_max": args.batch_slots,
         "min_batch_slots": args.min_batch_slots,
         "max_dispatched": args.max_dispatched,
-        "started_at_utc": utc_now(),
+        "duration_minutes_limit": args.duration_minutes,
+        "deadline_at_utc": deadline_at.isoformat() if deadline_at else None,
+        "elapsed_minutes": 0.0,
+        "timebox_complete": False,
+        "terminal_reason": None,
+        "started_at_utc": started_at.isoformat(),
         "finished_at_utc": None,
         "success": False,
         "achieved_graph_healthy": 0,
@@ -534,6 +562,14 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         while not state["success"]:
+            state["elapsed_minutes"] = round(elapsed_minutes(started_monotonic), 3)
+            if timebox_expired(
+                started_monotonic=started_monotonic,
+                duration_minutes=args.duration_minutes,
+            ):
+                state["timebox_complete"] = True
+                state["terminal_reason"] = "duration_elapsed"
+                break
             totals = state["totals"]
             slots = compute_next_batch_size(
                 target=args.target_graph_healthy,
@@ -585,6 +621,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             state["batches"].append(batch)
             cumulative_summary(state)
+            state["elapsed_minutes"] = round(elapsed_minutes(started_monotonic), 3)
             write_json_atomic(batch_root / "batch-summary.json", batch)
             write_json_atomic(args.summary, state)
             print(
@@ -597,15 +634,29 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         state["finished_at_utc"] = utc_now()
+        state["elapsed_minutes"] = round(elapsed_minutes(started_monotonic), 3)
         cumulative_summary(state)
         write_json_atomic(args.summary, state)
         if state["success"]:
+            state["terminal_reason"] = "target_achieved"
+            write_json_atomic(args.summary, state)
             print(
                 f"target achieved graph_healthy={state['achieved_graph_healthy']} "
                 f"dispatched={state['totals']['dispatched']}",
                 flush=True,
             )
             return 0
+        if state["timebox_complete"]:
+            state["error"] = None
+            write_json_atomic(args.summary, state)
+            print(
+                f"timebox complete elapsed_minutes={state['elapsed_minutes']} "
+                f"dispatched={state['totals']['dispatched']} "
+                f"graph_healthy={state['achieved_graph_healthy']}",
+                flush=True,
+            )
+            return 0
+        state["terminal_reason"] = "max_dispatched_exhausted_before_target"
         state["error"] = "max_dispatched_exhausted_before_target"
         write_json_atomic(args.summary, state)
         print(
@@ -617,6 +668,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     except (OrchestratorError, subprocess.TimeoutExpired, OSError) as exc:
         state["finished_at_utc"] = utc_now()
+        state["elapsed_minutes"] = round(elapsed_minutes(started_monotonic), 3)
+        state["terminal_reason"] = "orchestration_failed"
         state["error"] = str(exc)[:2000]
         cumulative_summary(state)
         write_json_atomic(args.summary, state)
