@@ -118,9 +118,9 @@ on:
         description: "Known-bad GA egress prefixes skipped before an account lease is acquired"
         required: false
         default: "4.,13.,20.,40.,52.,68.,74.249."
-  schedule:
-    - cron: "7,22,37,52 * * * *"
-
+concurrency:
+  group: service-abuse-auto-recovery
+  cancel-in-progress: false
 permissions:
   contents: read
 
