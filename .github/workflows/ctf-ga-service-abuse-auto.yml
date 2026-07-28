@@ -1,6 +1,11 @@
 name: CTF GA automatic service-abuse recovery (public runner)
 
 on:
+  schedule:
+    # Registration dispatches at 7/22/37/52. Recovery checks readiness at the
+    # middle of alternating gaps and skips rather than consuming lease-less
+    # runners when the pool or registration control plane is busy.
+    - cron: "0,30 * * * *"
   workflow_dispatch:
     inputs:
       timeout_minutes:
@@ -26,7 +31,7 @@ on:
       job_slots_json:
         description: "Bounded fresh-runner slots; up to 100 unique slots in range 1..200"
         required: true
-        default: "[1,2,3,4]"
+        default: "[2,4,6,8,10,12,14,16,18,20]"
       recovery_network_mode:
         description: "Microsoft transport: direct GA runner egress or isolated curated proxy pool"
         required: true
@@ -78,7 +83,7 @@ on:
       natural_retry_generation_mode:
         description: "Retry generation policy; slot_ab splits even slots by slot modulo 4"
         required: true
-        default: "slot_ab"
+        default: "same_challenge"
         type: choice
         options:
           - slot_ab
@@ -122,17 +127,175 @@ concurrency:
   group: service-abuse-auto-recovery
   cancel-in-progress: false
 permissions:
+  actions: read
   contents: read
 
 jobs:
+  pool-gate:
+    name: plan lease-funded recovery matrix
+    if: github.event_name == 'workflow_dispatch' || vars.SERVICE_ABUSE_AUTO_ENABLED == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    outputs:
+      dispatch: ${{ steps.plan.outputs.dispatch || 'false' }}
+      slots_json: ${{ steps.plan.outputs.slots_json || '[2]' }}
+      candidate_count: ${{ steps.plan.outputs.candidate_count || '0' }}
+      eligible_count: ${{ steps.plan.outputs.eligible_count || '0' }}
+      cooldown_count: ${{ steps.plan.outputs.cooldown_count || '0' }}
+      selected_slot_count: ${{ steps.plan.outputs.selected_slot_count || '0' }}
+      retry_after_ms: ${{ steps.plan.outputs.retry_after_ms || '0' }}
+    env:
+      GA_COORDINATOR_URL: ${{ vars.GA_COORDINATOR_URL }}
+      GA_COORDINATOR_TOKEN: ${{ secrets.GA_COORDINATOR_TOKEN }}
+      RECOVERY_SOURCE_REF: "1913a13bbaff040a11516e2e9c2a084d277a24dd"
+    steps:
+      - name: Fail closed around active scheduled registration
+        id: conflicts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          blocked=false
+          child_count=0
+          parent_count=0
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            child_count="$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/ctf-ga-own-ip-pool.yml/runs?per_page=20" \
+              --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
+            parent_count="$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/ctf-ga-target-graph-healthy.yml/runs?per_page=20" \
+              --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
+            if ! [[ "$child_count" =~ ^[0-9]+$ && "$parent_count" =~ ^[0-9]+$ ]]; then
+              echo "could not determine active registration runs" >&2
+              exit 1
+            fi
+            if [ "$child_count" -gt 0 ] || [ "$parent_count" -gt 0 ]; then
+              blocked=true
+            fi
+          fi
+          echo "blocked=$blocked" >> "$GITHUB_OUTPUT"
+          echo "registration_children=$child_count" >> "$GITHUB_OUTPUT"
+          echo "registration_parents=$parent_count" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout private recovery planner
+        if: steps.conflicts.outputs.blocked != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
+          ref: "1913a13bbaff040a11516e2e9c2a084d277a24dd"
+          ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
+          persist-credentials: false
+
+      - name: Verify private recovery planner commit
+        if: steps.conflicts.outputs.blocked != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RECOVERY_SOURCE_REF"
+
+      - name: Install lightweight pool-planner dependencies
+        if: steps.conflicts.outputs.blocked != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv .pool-gate-venv
+          .pool-gate-venv/bin/python -m pip install \
+            --disable-pip-version-check --quiet requests 'cryptography>=41'
+
+      - name: Materialize OutlookEmail planner configuration
+        if: steps.conflicts.outputs.blocked != 'true'
+        shell: bash
+        env:
+          OUTLOOK_EMAIL_WRITEBACK_CONFIG_B64: ${{ secrets.OUTLOOK_EMAIL_WRITEBACK_CONFIG_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${OUTLOOK_EMAIL_WRITEBACK_CONFIG_B64:-}"
+          test -n "${GA_COORDINATOR_URL:-}"
+          test -n "${GA_COORDINATOR_TOKEN:-}"
+          mkdir -p "$RUNNER_TEMP/recovery-pool-gate"
+          python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          target = Path(os.environ["RUNNER_TEMP"]) / "recovery-pool-gate" / "outlook-email.json"
+          target.write_bytes(
+              base64.b64decode(
+                  os.environ["OUTLOOK_EMAIL_WRITEBACK_CONFIG_B64"],
+                  validate=True,
+              )
+          )
+          PY
+          chmod 600 "$RUNNER_TEMP/recovery-pool-gate/outlook-email.json"
+
+      - name: Plan a lease-funded matrix
+        if: steps.conflicts.outputs.blocked != 'true'
+        id: plan
+        shell: bash
+        env:
+          REQUESTED_SLOTS_JSON: ${{ github.event_name == 'workflow_dispatch' && inputs.job_slots_json || vars.SERVICE_ABUSE_AUTO_SLOTS_JSON || '[2,4,6,8,10,12,14,16,18,20]' }}
+          PLAN_MODE: ${{ github.event_name == 'schedule' && 'auto' || 'manual' }}
+          MAX_CANDIDATES: ${{ inputs.max_candidates || '500' }}
+          RESERVE_ACCOUNTS: ${{ github.event_name == 'schedule' && (vars.SERVICE_ABUSE_AUTO_LEASE_RESERVE || '2') || '0' }}
+          MIN_DISPATCH_SLOTS: ${{ github.event_name == 'schedule' && (vars.SERVICE_ABUSE_AUTO_MIN_SLOTS || '4') || '1' }}
+          MAX_DISPATCH_SLOTS: ${{ github.event_name == 'schedule' && (vars.SERVICE_ABUSE_AUTO_MAX_SLOTS || '10') || '100' }}
+          EGRESS_ADMISSION_RATE: ${{ vars.SERVICE_ABUSE_AUTO_EGRESS_ADMISSION_RATE || '0.375' }}
+          STRICT_PER_LEASE_RATE: ${{ vars.SERVICE_ABUSE_AUTO_STRICT_PER_LEASE_RATE || '0.586' }}
+          TARGET_EXPECTED_SUCCESSES: ${{ vars.SERVICE_ABUSE_AUTO_TARGET_SUCCESSES || '2.0' }}
+        run: |
+          set -euo pipefail
+          .pool-gate-venv/bin/python -u tools/outlook_email_recovery_coordinator.py plan \
+            --outlook-config "$RUNNER_TEMP/recovery-pool-gate/outlook-email.json" \
+            --coordinator-url "$GA_COORDINATOR_URL" \
+            --safe-output "$RUNNER_TEMP/recovery-pool-gate/plan.json" \
+            --github-output "$GITHUB_OUTPUT" \
+            --requested-slots-json "$REQUESTED_SLOTS_JSON" \
+            --mode "$PLAN_MODE" \
+            --max-candidates "$MAX_CANDIDATES" \
+            --reserve-accounts "$RESERVE_ACCOUNTS" \
+            --min-dispatch-slots "$MIN_DISPATCH_SLOTS" \
+            --max-dispatch-slots "$MAX_DISPATCH_SLOTS" \
+            --egress-admission-rate "$EGRESS_ADMISSION_RATE" \
+            --strict-per-lease-rate "$STRICT_PER_LEASE_RATE" \
+            --target-expected-successes "$TARGET_EXPECTED_SUCCESSES"
+
+      - name: Summarize pool gate
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Recovery pool gate"
+            echo
+            if [ "${{ steps.conflicts.outputs.blocked }}" = "true" ]; then
+              echo "Skipped: scheduled registration is queued or running."
+              echo "- registration child runs: ${{ steps.conflicts.outputs.registration_children }}"
+              echo "- registration parent runs: ${{ steps.conflicts.outputs.registration_parents }}"
+            elif [ -f "$RUNNER_TEMP/recovery-pool-gate/plan.json" ]; then
+              echo '```json'
+              cat "$RUNNER_TEMP/recovery-pool-gate/plan.json"
+              echo
+              echo '```'
+            else
+              echo "Pool plan did not run."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cleanup pool planner material
+        if: always()
+        shell: bash
+        run: |
+          rm -rf "$RUNNER_TEMP/recovery-pool-gate" .pool-gate-venv || true
+
   recover:
     name: recover (${{ matrix.slot }})
-    if: github.event_name == 'workflow_dispatch' || vars.SERVICE_ABUSE_AUTO_ENABLED == 'true'
+    needs: pool-gate
+    if: needs.pool-gate.result == 'success' && needs.pool-gate.outputs.dispatch == 'true'
     strategy:
       fail-fast: false
       max-parallel: 20
       matrix:
-        slot: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.job_slots_json || vars.SERVICE_ABUSE_AUTO_SLOTS_JSON || '[1,2,3,4]') }}
+        slot: ${{ fromJSON(needs.pool-gate.outputs.slots_json) }}
     runs-on: ${{ inputs.runner || 'ubuntu-22.04' }}
     timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '30') }}
     env:
@@ -163,7 +326,7 @@ jobs:
       EXACT5S_FINAL_XGHM_START_INDEX: ${{ inputs.exact5s_final_xghm_start_index || '1' }}
       NATURAL_FINAL_PROOF_MODE: ${{ inputs.natural_final_proof_mode || 'current_private_passthrough' }}
       NATURAL_HOLD_PROFILE: ${{ (inputs.registration_natural_overlay || 'true') == 'true' && 'registration_875b_one_shot' || 'registration_10s' }}
-      NATURAL_RETRY_GENERATION_MODE: ${{ inputs.natural_retry_generation_mode || 'manual' }}
+      NATURAL_RETRY_GENERATION_MODE: ${{ inputs.natural_retry_generation_mode || 'same_challenge' }}
       NATURAL_W0_BRIDGE: ${{ inputs.natural_w0_bridge || 'false' }}
       NATURAL_FORCE_W0_AFTER_MINUS1: ${{ inputs.natural_force_w0_after_minus1 || 'false' }}
       NATURAL_SERVER_CHALLENGE_ROUNDS: ${{ inputs.natural_server_challenge_rounds || '3' }}
@@ -172,7 +335,7 @@ jobs:
       NATURAL_SAME_CHALLENGE_SETTLE_MODE: ${{ inputs.natural_same_challenge_settle_mode || 'control12' }}
       HSPROTECT_MAIN_ASSET_SHA256: ${{ inputs.hsprotect_main_asset_sha256 || '77aed42430ae5f8c15294950fc69c37fa1ca52cec4c32d50e890e8b80830b502' }}
       HSPROTECT_MAIN_ASSET_FAMILY_SHA256: "b8f8b46fe3c73ba6b1756d68b5233f4e76a8aff54e53455c4dd8f113f2935fca"
-      RECOVERY_SOURCE_REF: "d7cf44179210f9408de11b67bd908c13bd969640"
+      RECOVERY_SOURCE_REF: "1913a13bbaff040a11516e2e9c2a084d277a24dd"
     steps:
       - name: Reject GitHub UI re-runs
         if: github.run_attempt != 1
@@ -190,7 +353,7 @@ jobs:
       - name: Validate bounded recovery matrix
         shell: bash
         env:
-          JOB_SLOTS_JSON: ${{ github.event_name == 'workflow_dispatch' && inputs.job_slots_json || vars.SERVICE_ABUSE_AUTO_SLOTS_JSON || '[1,2,3,4]' }}
+          JOB_SLOTS_JSON: ${{ needs.pool-gate.outputs.slots_json }}
         run: |
           set -euo pipefail
           "$BOOTSTRAP_PYTHON" - <<'PY'
@@ -505,7 +668,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: "d7cf44179210f9408de11b67bd908c13bd969640"
+          ref: "1913a13bbaff040a11516e2e9c2a084d277a24dd"
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
 

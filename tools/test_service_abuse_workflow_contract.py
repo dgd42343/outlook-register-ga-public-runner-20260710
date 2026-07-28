@@ -16,8 +16,8 @@ class ServiceAbuseWorkflowContractTests(unittest.TestCase):
             source,
         )
         self.assertEqual(
-            source.count("d7cf44179210f9408de11b67bd908c13bd969640"),
-            2,
+            source.count("1913a13bbaff040a11516e2e9c2a084d277a24dd"),
+            4,
         )
         self.assertNotIn("ede1e7150e90cd7c0e11d3d217085f57c4176db2", source)
 
@@ -59,6 +59,25 @@ class ServiceAbuseWorkflowContractTests(unittest.TestCase):
         )
         self.assertIn('"lease_wait_rounds": int(', source)
         self.assertIn('"lease_waited_ms": int(', source)
+
+    def test_scheduled_recovery_is_released_only_by_pool_capacity(self):
+        source = WORKFLOW.read_text(encoding="utf-8")
+
+        self.assertIn('- cron: "0,30 * * * *"', source)
+        self.assertIn("plan lease-funded recovery matrix", source)
+        self.assertIn("outlook_email_recovery_coordinator.py plan", source)
+        self.assertIn("--reserve-accounts", source)
+        self.assertIn("--strict-per-lease-rate", source)
+        self.assertIn("--target-expected-successes", source)
+        self.assertIn("needs.pool-gate.outputs.slots_json", source)
+        self.assertIn(
+            "needs.pool-gate.outputs.dispatch == 'true'",
+            source,
+        )
+        self.assertIn(
+            "inputs.natural_retry_generation_mode || 'same_challenge'",
+            source,
+        )
 
 
 if __name__ == "__main__":

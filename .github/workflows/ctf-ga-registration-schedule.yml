@@ -90,8 +90,11 @@ jobs:
           active_count="$(gh api \
             "repos/${TARGET_REPOSITORY}/actions/workflows/ctf-ga-own-ip-pool.yml/runs?branch=${TARGET_REF}&per_page=20" \
             --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
-          if ! [[ "$active_count" =~ ^[0-9]+$ ]]; then
-            echo "could not determine active registration runs" >&2
+          recovery_count="$(gh api \
+            "repos/${TARGET_REPOSITORY}/actions/workflows/ctf-ga-service-abuse-auto.yml/runs?branch=${TARGET_REF}&per_page=20" \
+            --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
+          if ! [[ "$active_count" =~ ^[0-9]+$ && "$recovery_count" =~ ^[0-9]+$ ]]; then
+            echo "could not determine active registration or recovery runs" >&2
             exit 1
           fi
           if [ "$active_count" -gt 0 ]; then
@@ -100,6 +103,15 @@ jobs:
               echo "## Scheduled registration"
               echo
               echo "Skipped: an existing `ctf-ga-own-ip-pool.yml` run is queued or in progress (count=$active_count)."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$recovery_count" -gt 0 ]; then
+            echo "recovery run already active; skip this registration schedule (recovery_count=$recovery_count)"
+            {
+              echo "## Scheduled registration"
+              echo
+              echo "Skipped: a `ctf-ga-service-abuse-auto.yml` run is queued or in progress (count=$recovery_count)."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
