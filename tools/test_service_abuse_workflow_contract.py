@@ -16,7 +16,7 @@ class ServiceAbuseWorkflowContractTests(unittest.TestCase):
             source,
         )
         self.assertEqual(
-            source.count("7986b18a1aad5bf4b557f0ceb0c056e1d60fb882"),
+            source.count("d7cf44179210f9408de11b67bd908c13bd969640"),
             2,
         )
         self.assertNotIn("ede1e7150e90cd7c0e11d3d217085f57c4176db2", source)
