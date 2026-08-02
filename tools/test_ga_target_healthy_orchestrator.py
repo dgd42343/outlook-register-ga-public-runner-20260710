@@ -1,6 +1,10 @@
 import unittest
 
 from tools.ga_target_healthy_orchestrator import (
+    CLIFF_GROW_FACTOR,
+    CLIFF_GROW_THRESHOLD,
+    CLIFF_SHRINK_FACTOR,
+    CLIFF_SHRINK_THRESHOLD,
     OrchestratorError,
     compute_next_batch_size,
     parse_run_id,
@@ -193,6 +197,162 @@ class VerdictSummaryTests(unittest.TestCase):
                 batch_marker="target-b001",
                 run_info=self.run_info,
             )
+
+
+class CliffAdaptiveBatchTests(unittest.TestCase):
+    """Verify the orchestrator backs off when collector_minus1 (cliff) spikes."""
+
+    def test_high_cliff_rate_shrinks_batch(self):
+        # batch_slots=60, cliff_rate=0.35 (> 0.25 threshold) -> 60*0.5=30
+        shrunk = compute_next_batch_size(
+            target=100,
+            achieved=10,
+            dispatched=50,
+            max_dispatched=500,
+            batch_slots=60,
+            min_batch_slots=5,
+            prev_cliff_rate=0.35,
+            consecutive_clean=0,
+        )
+        self.assertLessEqual(shrunk, int(60 * CLIFF_SHRINK_FACTOR))
+        self.assertGreaterEqual(shrunk, 5)
+
+    def test_low_cliff_rate_alone_does_not_grow(self):
+        # One clean batch is not enough; need two consecutive.
+        result = compute_next_batch_size(
+            target=100,
+            achieved=10,
+            dispatched=50,
+            max_dispatched=500,
+            batch_slots=60,
+            min_batch_slots=5,
+            prev_cliff_rate=0.02,
+            consecutive_clean=1,
+        )
+        # Without 2 consecutive clean, effective_cap stays at batch_slots=60
+        self.assertLessEqual(result, 60)
+
+    def test_two_clean_batches_enable_growth(self):
+        result = compute_next_batch_size(
+            target=100,
+            achieved=10,
+            dispatched=50,
+            max_dispatched=500,
+            batch_slots=60,
+            min_batch_slots=5,
+            prev_cliff_rate=0.02,
+            consecutive_clean=2,
+        )
+        # 60 * 1.3 = 78, but capped by batch_slots=60
+        self.assertLessEqual(result, 60)
+
+    def test_growth_helps_when_batch_cap_is_low(self):
+        # If previously shrunk (effective cap was 30), two clean batches
+        # should grow toward 30*1.3=39.
+        result = compute_next_batch_size(
+            target=100,
+            achieved=10,
+            dispatched=50,
+            max_dispatched=500,
+            batch_slots=30,
+            min_batch_slots=5,
+            prev_cliff_rate=0.02,
+            consecutive_clean=2,
+        )
+        self.assertGreaterEqual(result, min(30, int(30 * CLIFF_GROW_FACTOR)))
+
+    def test_cliff_does_not_override_hard_budget(self):
+        result = compute_next_batch_size(
+            target=100,
+            achieved=99,
+            dispatched=99,
+            max_dispatched=100,
+            batch_slots=60,
+            min_batch_slots=5,
+            prev_cliff_rate=0.50,
+            consecutive_clean=0,
+        )
+        self.assertLessEqual(result, 1)
+
+    def test_zero_cliff_first_batch_unchanged(self):
+        result = compute_next_batch_size(
+            target=100,
+            achieved=0,
+            dispatched=0,
+            max_dispatched=500,
+            batch_slots=60,
+            min_batch_slots=5,
+            prev_cliff_rate=0.0,
+            consecutive_clean=0,
+        )
+        self.assertEqual(result, 60)
+
+
+class CliffVerdictSummaryTests(unittest.TestCase):
+    """Verify summarize_verdicts detects collector_minus1 live slots."""
+
+    def setUp(self):
+        self.run_info = {
+            "databaseId": 42,
+            "url": "https://github.com/a/b/actions/runs/42",
+            "conclusion": "failure",
+            "headSha": "abc",
+            "createdAt": "2026-07-29T10:00:00Z",
+            "updatedAt": "2026-07-29T10:10:00Z",
+        }
+
+    def test_collector_minus1_detected_as_cliff(self):
+        rows = [
+            verdict(1, "strict_success", accepted_result0=True, strict_success=True,
+                    graph_import_ok=True, account_lifecycle="graph_healthy"),
+            verdict(2, "technical_failure", accepted_result0=False),
+            verdict(3, "technical_failure", accepted_result0=False),
+            verdict(4, "technical_failure", accepted_result0=False),
+            verdict(5, "ip_skipped"),
+        ]
+        summary = summarize_verdicts(
+            rows=rows,
+            expected_slots=5,
+            batch_marker="target-b001",
+            run_info=self.run_info,
+        )
+        # 4 live, 3 of which are cliff (technical_failure, no accepted_result0)
+        self.assertEqual(summary["live"], 4)
+        self.assertEqual(summary["collector_cliff_live"], 3)
+        self.assertAlmostEqual(summary["collector_cliff_rate"], 0.75)
+
+    def test_riskblock_not_counted_as_cliff(self):
+        rows = [
+            verdict(1, "ip_riskblock", explicit_riskblock=True),
+            verdict(2, "ip_riskblock", explicit_riskblock=True),
+            verdict(3, "technical_failure", accepted_result0=False),
+            verdict(4, "ip_skipped"),
+        ]
+        summary = summarize_verdicts(
+            rows=rows,
+            expected_slots=4,
+            batch_marker="target-b001",
+            run_info=self.run_info,
+        )
+        # 3 live, but only 1 is cliff (riskblock excluded)
+        self.assertEqual(summary["collector_cliff_live"], 1)
+        self.assertAlmostEqual(summary["collector_cliff_rate"], 1.0 / 3.0)
+
+    def test_probe_timeout_not_counted_as_cliff(self):
+        rows = [
+            verdict(1, "technical_failure", accepted_result0=False, probe_timed_out=True),
+            verdict(2, "technical_failure", accepted_result0=False),
+            verdict(3, "ip_skipped"),
+        ]
+        summary = summarize_verdicts(
+            rows=rows,
+            expected_slots=3,
+            batch_marker="target-b001",
+            run_info=self.run_info,
+        )
+        # 2 live, 1 cliff (probe_timed_out excluded)
+        self.assertEqual(summary["collector_cliff_live"], 1)
+        self.assertAlmostEqual(summary["collector_cliff_rate"], 0.5)
 
 
 if __name__ == "__main__":
