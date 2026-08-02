@@ -281,6 +281,16 @@ def summarize_verdicts(
         or row.get("fresh_rechallenge_idle_timed_out") is True
     ]
     risk = [row for row in live if row.get("explicit_riskblock") is True]
+    # Live slots that entered the captcha but the collector returned -1 without
+    # an accepted result0.  A high ratio signals the shared-risk collector cliff.
+    collector_cliff_live = [
+        row
+        for row in live
+        if row.get("accepted_result0") is not True
+        and row.get("explicit_riskblock") is not True
+        and row.get("probe_timed_out") is not True
+        and row.get("category") == "technical_failure"
+    ]
     waits = [
         int(wait)
         for row in rows
@@ -313,6 +323,8 @@ def summarize_verdicts(
         "fresh_challenge": len(fresh),
         "explicit_riskblock": len(risk),
         "probe_timeout": sum(bool(row.get("probe_timed_out")) for row in live),
+        "collector_cliff_live": len(collector_cliff_live),
+        "collector_cliff_rate": len(collector_cliff_live) / len(live) if live else 0.0,
         "graph_import_attempts_gt1": sum(
             int(row.get("graph_import_attempts") or 0) > 1 for row in rows
         ),
@@ -355,6 +367,16 @@ def summarize_verdicts(
     }
 
 
+# Cliff threshold: when >25% of live slots in the previous batch returned
+# collector -1 without an accepted result0, the shared-risk window is closing.
+# Back off to avoid pouring jobs into a throttled lane.  Two consecutive clean
+# batches (cliff_rate < 5%) are required before growing again.
+CLIFF_SHRINK_THRESHOLD = 0.15
+CLIFF_GROW_THRESHOLD = 0.05
+CLIFF_SHRINK_FACTOR = 0.5
+CLIFF_GROW_FACTOR = 1.3
+
+
 def compute_next_batch_size(
     *,
     target: int,
@@ -363,18 +385,30 @@ def compute_next_batch_size(
     max_dispatched: int,
     batch_slots: int,
     min_batch_slots: int,
+    prev_cliff_rate: float = 0.0,
+    consecutive_clean: int = 0,
 ) -> int:
     budget = max_dispatched - dispatched
     if budget <= 0 or achieved >= target:
         return 0
+
+    # Effective cap starts at the configured batch_slots, but shrinks when the
+    # previous batch hit the collector cliff.  Recovery requires two clean
+    # batches in a row before the cap grows back toward batch_slots.
+    effective_cap = batch_slots
+    if prev_cliff_rate >= CLIFF_SHRINK_THRESHOLD:
+        effective_cap = max(min_batch_slots, int(batch_slots * CLIFF_SHRINK_FACTOR))
+    elif prev_cliff_rate < CLIFF_GROW_THRESHOLD and consecutive_clean >= 2:
+        effective_cap = min(batch_slots, int(batch_slots * CLIFF_GROW_FACTOR))
+
     if dispatched == 0 or achieved == 0:
-        return min(batch_slots, budget)
+        return min(effective_cap, budget)
     remaining = target - achieved
     observed_rate = achieved / dispatched
     conservative_rate = max(observed_rate * 0.85, 0.05)
     estimated = math.ceil(remaining / conservative_rate)
     planned = max(min_batch_slots, estimated)
-    return min(batch_slots, budget, planned)
+    return min(effective_cap, budget, planned)
 
 
 def cumulative_summary(state: dict[str, Any]) -> None:
@@ -470,6 +504,8 @@ def main(argv: list[str] | None = None) -> int:
         run_gh(["auth", "status"], timeout=30)
         run_gh(["api", f"repos/{args.repo}", "--silent"], timeout=30)
         ensure_child_idle(args.repo, args.workflow)
+        prev_cliff_rate = 0.0
+        consecutive_clean = 0
         if args.dry_run:
             state["dry_run"] = True
             state["planned_first_batch_slots"] = compute_next_batch_size(
@@ -494,6 +530,8 @@ def main(argv: list[str] | None = None) -> int:
                 max_dispatched=args.max_dispatched,
                 batch_slots=args.batch_slots,
                 min_batch_slots=args.min_batch_slots,
+                prev_cliff_rate=prev_cliff_rate,
+                consecutive_clean=consecutive_clean,
             )
             if slots <= 0:
                 break
@@ -534,6 +572,16 @@ def main(argv: list[str] | None = None) -> int:
                 run_info=run_info,
             )
             state["batches"].append(batch)
+            batch_cliff_rate = float(batch.get("collector_cliff_rate") or 0.0)
+            if batch_cliff_rate >= CLIFF_SHRINK_THRESHOLD:
+                prev_cliff_rate = batch_cliff_rate
+                consecutive_clean = 0
+            else:
+                prev_cliff_rate = batch_cliff_rate
+                if batch_cliff_rate < CLIFF_GROW_THRESHOLD:
+                    consecutive_clean += 1
+                else:
+                    consecutive_clean = 0
             cumulative_summary(state)
             write_json_atomic(batch_root / "batch-summary.json", batch)
             write_json_atomic(args.summary, state)
