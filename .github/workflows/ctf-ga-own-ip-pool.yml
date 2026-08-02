@@ -55,6 +55,8 @@ on:
           - offline_ads_pool_ga_fresh_rechallenge
           - offline_ads_pool_balanced_shuffle_v1
           - offline_ads_pool_diverse_proof_v1
+          - offline_ads_pool_rechallenge_gate_v1
+          - offline_ads_pool_rechallenge_gate_v2
           - offline_ads_pool_fresh_cookie_ab_v1
           - semiprotocol_5s_stable
           - sunbrowser_thin_natural
@@ -217,7 +219,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: ${{ inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' && '502635b8402912f98edbab9cad1a6fca2311be4a' || inputs.variant == 'offline_ads_pool_diverse_proof_v1' && '86d8756920dd85cecbdaf75f9e6bc99cc7d513e5' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' && 'c183e15554378a23b0a79e38eeeffb5173fa9a3a' || inputs.variant == 'sunbrowser_fresh_completion_ab_v1' && '8416afe01af20fdc9311441624f01a32f0c99684' || inputs.variant == 'sunbrowser_hardware_template_ab_v1' && '63d36038928a364d4263049dd1a9a184e4552409' || inputs.variant == 'sunbrowser_webgl_integrity_ab_v1' && '64b9ca34ee7ce95407a22cf7e6c36562185eb077' || inputs.variant == 'sunbrowser_profile_state_ab_v1' && '73d4cffbbb31322f254903cb83890e4179a4b589' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' && '77ed97ba2e15e4bf107e88a2e8c7a88e0aadef40' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' && '31e5d63efa879f753a71e0ac820c2bedfad376a1' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' && '2df4a7f25cd9c971b5ffba81174f7889432a2e77' || inputs.variant == 'sunbrowser_thin_natural' && '0f7a8643cf2ec6232f797e041f0cd79427bf38b9' || inputs.variant == 'historical_ga_success_default' && 'f8c9c0ea377a08b4c5c10a05c0558cda85d5a01a' || inputs.variant == 'historical_ga_highrate_336a973' && '336a97312e3e89219ad6179b196bfa99239cb13e' || inputs.variant == 'historical_ga_fresh_rechallenge' && '96787a7561f5e4b8786c2fda9cf3f8f1da0035bf' || inputs.variant == 'online_ads_ga_fresh_rechallenge' && '31dfe0e28e5da13645a455dba6737c19346faf63' || inputs.variant == 'online_ads_ga_production_fast_fail' && '875b0571d5b9c88b89a5bbc64f30488ee9565962' || inputs.variant == 'online_ads_ga_fresh_5s_recovery' && 'ae0745a95f73bec3ab24b9a5ce461bae1fa4a371' || inputs.variant == 'online_ads_ga_5s_hold_transplant' && '01086ae6d319a8bbf019ddb34267edd59ac7ec31' || (inputs.variant == 'release_5s_success_baseline' || inputs.variant == 'release_5s_success_attempt2') && '00b68437e041cbdcee2be209a18d7a5592f4c2dd' || (inputs.variant == 'offline_ads_like_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge') && '0838ef3a52c6eb337b0847762757d282b36b9e5e' || vars.PRIVATE_SOURCE_REF }}
+          ref: ${{ inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' && '502635b8402912f98edbab9cad1a6fca2311be4a' || inputs.variant == 'offline_ads_pool_diverse_proof_v1' && '86d8756920dd85cecbdaf75f9e6bc99cc7d513e5' || (inputs.variant == 'offline_ads_pool_rechallenge_gate_v1' || inputs.variant == 'offline_ads_pool_rechallenge_gate_v2') && 'a2053dbd2c83e6724145fca21fb0fbbdd09822b2' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' && 'c183e15554378a23b0a79e38eeeffb5173fa9a3a' || inputs.variant == 'sunbrowser_fresh_completion_ab_v1' && '8416afe01af20fdc9311441624f01a32f0c99684' || inputs.variant == 'sunbrowser_hardware_template_ab_v1' && '63d36038928a364d4263049dd1a9a184e4552409' || inputs.variant == 'sunbrowser_webgl_integrity_ab_v1' && '64b9ca34ee7ce95407a22cf7e6c36562185eb077' || inputs.variant == 'sunbrowser_profile_state_ab_v1' && '73d4cffbbb31322f254903cb83890e4179a4b589' || inputs.variant == 'sunbrowser_thin_natural_envelope_v284a' && '77ed97ba2e15e4bf107e88a2e8c7a88e0aadef40' || inputs.variant == 'sunbrowser_thin_natural_raw_v284a' && '31e5d63efa879f753a71e0ac820c2bedfad376a1' || inputs.variant == 'sunbrowser_thin_natural_alias_v284a' && '2df4a7f25cd9c971b5ffba81174f7889432a2e77' || inputs.variant == 'sunbrowser_thin_natural' && '0f7a8643cf2ec6232f797e041f0cd79427bf38b9' || inputs.variant == 'historical_ga_success_default' && 'f8c9c0ea377a08b4c5c10a05c0558cda85d5a01a' || inputs.variant == 'historical_ga_highrate_336a973' && '336a97312e3e89219ad6179b196bfa99239cb13e' || inputs.variant == 'historical_ga_fresh_rechallenge' && '96787a7561f5e4b8786c2fda9cf3f8f1da0035bf' || inputs.variant == 'online_ads_ga_fresh_rechallenge' && '31dfe0e28e5da13645a455dba6737c19346faf63' || inputs.variant == 'online_ads_ga_production_fast_fail' && '875b0571d5b9c88b89a5bbc64f30488ee9565962' || inputs.variant == 'online_ads_ga_fresh_5s_recovery' && 'ae0745a95f73bec3ab24b9a5ce461bae1fa4a371' || inputs.variant == 'online_ads_ga_5s_hold_transplant' && '01086ae6d319a8bbf019ddb34267edd59ac7ec31' || (inputs.variant == 'release_5s_success_baseline' || inputs.variant == 'release_5s_success_attempt2') && '00b68437e041cbdcee2be209a18d7a5592f4c2dd' || (inputs.variant == 'offline_ads_like_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge') && '0838ef3a52c6eb337b0847762757d282b36b9e5e' || vars.PRIVATE_SOURCE_REF }}
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
           clean: true
@@ -443,12 +445,14 @@ jobs:
           grep -q 'FRESH_RECHALLENGE_ROUNDS' controllers/base_controller.py
 
       - name: Verify offline ADS profile pool source
-        if: ${{ inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' || inputs.variant == 'offline_ads_pool_diverse_proof_v1' }}
+        if: ${{ inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' || inputs.variant == 'offline_ads_pool_diverse_proof_v1' || inputs.variant == 'offline_ads_pool_rechallenge_gate_v1' || inputs.variant == 'offline_ads_pool_rechallenge_gate_v2' }}
         shell: bash
         run: |
           set -euo pipefail
           if [ "${{ inputs.variant }}" = "offline_ads_pool_diverse_proof_v1" ]; then
             expected=86d8756920dd85cecbdaf75f9e6bc99cc7d513e5
+          elif [ "${{ inputs.variant }}" = "offline_ads_pool_rechallenge_gate_v1" ] || [ "${{ inputs.variant }}" = "offline_ads_pool_rechallenge_gate_v2" ]; then
+            expected=a2053dbd2c83e6724145fca21fb0fbbdd09822b2
           elif [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ]; then
             expected=502635b8402912f98edbab9cad1a6fca2311be4a
           elif [ "${{ inputs.variant }}" = "offline_ads_pool_fresh_cookie_ab_v1" ]; then
@@ -475,7 +479,7 @@ jobs:
             grep -q 'FRESH_CLEAR_SOLUTION_COOKIES' controllers/base_controller.py
             grep -q 'solution_cookie_policy' controllers/base_controller.py
           fi
-          if [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ] || [ "${{ inputs.variant }}" = "offline_ads_pool_diverse_proof_v1" ]; then
+          if [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ] || [ "${{ inputs.variant }}" = "offline_ads_pool_diverse_proof_v1" ] || [ "${{ inputs.variant }}" = "offline_ads_pool_rechallenge_gate_v1" ] || [ "${{ inputs.variant }}" = "offline_ads_pool_rechallenge_gate_v2" ]; then
             grep -q 'select_profile_index' tools/fetch_ads_profile_template.py
             python3 -m unittest tools.test_fetch_ads_profile_template
           fi
@@ -883,7 +887,7 @@ jobs:
           PY
 
       - name: Apply offline ADS profile-pool fingerprint
-        if: ${{ (inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' || inputs.variant == 'offline_ads_pool_diverse_proof_v1') && steps.egress.outputs.should_probe != 'false' }}
+        if: ${{ (inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' || inputs.variant == 'offline_ads_pool_diverse_proof_v1' || inputs.variant == 'offline_ads_pool_rechallenge_gate_v1' || inputs.variant == 'offline_ads_pool_rechallenge_gate_v2') && steps.egress.outputs.should_probe != 'false' }}
         shell: bash
         env:
           PROFILE_SELECTION_SEED: ${{ format('{0}:{1}', inputs.orchestration_id != '' && inputs.orchestration_id || github.run_id, startsWith(inputs.orchestration_id, 'lane-ab-') && inputs.orchestration_id || github.repository_owner) }}
@@ -891,7 +895,7 @@ jobs:
           set -euo pipefail
           mkdir -p .ads-offline/generated Results/diagnostics
           selection_args=()
-          if [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ] || [ "${{ inputs.variant }}" = "offline_ads_pool_diverse_proof_v1" ]; then
+          if [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ] || [ "${{ inputs.variant }}" = "offline_ads_pool_diverse_proof_v1" ] || [ "${{ inputs.variant }}" = "offline_ads_pool_rechallenge_gate_v1" ] || [ "${{ inputs.variant }}" = "offline_ads_pool_rechallenge_gate_v2" ]; then
             selection_args=(--selection-seed "$PROFILE_SELECTION_SEED")
           fi
           python3 tools/fetch_ads_profile_template.py \
@@ -1585,6 +1589,10 @@ jobs:
           OUTLOOK_SIGNUP_PROTOCOL_TAKEOVER_FRESH_RECHALLENGE_ROUNDS: ${{ inputs.variant == 'sunbrowser_fresh_completion_ab_v1' && '1' || inputs.variant == 'online_ads_ga_production_fast_fail' && '0' || '' }}
           OUTLOOK_SIGNUP_PROTOCOL_TAKEOVER_FRESH_HOLD_RETRIES: ${{ inputs.variant == 'sunbrowser_fresh_completion_ab_v1' && '1' || '' }}
           FRESH_SESSION_RESTART_POLICY: ${{ inputs.fresh_session_restart_policy }}
+          RISK_VERIFY_GATE_MS: ${{ (inputs.variant == 'offline_ads_pool_rechallenge_gate_v1' && '900') || (inputs.variant == 'offline_ads_pool_rechallenge_gate_v2' && '1600') || '' }}
+          RISK_VERIFY_GATE_TIMEOUT_MS: ${{ (inputs.variant == 'offline_ads_pool_rechallenge_gate_v1' && '3000') || (inputs.variant == 'offline_ads_pool_rechallenge_gate_v2' && '4000') || '' }}
+          RISK_VERIFY_SERVER_RETRY_COUNT: ${{ (inputs.variant == 'offline_ads_pool_rechallenge_gate_v1' && '1') || (inputs.variant == 'offline_ads_pool_rechallenge_gate_v2' && '2') || '' }}
+          RISK_VERIFY_SERVER_RETRY_DELAY_MS: ${{ (inputs.variant == 'offline_ads_pool_rechallenge_gate_v1' && '1200') || (inputs.variant == 'offline_ads_pool_rechallenge_gate_v2' && '1500') || '' }}
         run: |
           set +e
           mkdir -p Results/diagnostics
