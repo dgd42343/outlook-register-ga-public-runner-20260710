@@ -443,12 +443,14 @@ jobs:
           grep -q 'FRESH_RECHALLENGE_ROUNDS' controllers/base_controller.py
 
       - name: Verify offline ADS profile pool source
-        if: ${{ inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' }}
+        if: ${{ inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' || inputs.variant == 'offline_ads_pool_diverse_proof_v1' }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ]; then
+          if [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ] || [ "${{ inputs.variant }}" = "offline_ads_pool_diverse_proof_v1" ]; then
             expected=502635b8402912f98edbab9cad1a6fca2311be4a
+          elif [ "${{ inputs.variant }}" = "offline_ads_pool_diverse_proof_v1" ]; then
+            expected=86d8756920dd85cecbdaf75f9e6bc99cc7d513e5
           elif [ "${{ inputs.variant }}" = "offline_ads_pool_fresh_cookie_ab_v1" ]; then
             expected=c183e15554378a23b0a79e38eeeffb5173fa9a3a
           else
@@ -473,7 +475,7 @@ jobs:
             grep -q 'FRESH_CLEAR_SOLUTION_COOKIES' controllers/base_controller.py
             grep -q 'solution_cookie_policy' controllers/base_controller.py
           fi
-          if [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ]; then
+          if [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ] || [ "${{ inputs.variant }}" = "offline_ads_pool_diverse_proof_v1" ]; then
             grep -q 'select_profile_index' tools/fetch_ads_profile_template.py
             python3 -m unittest tools.test_fetch_ads_profile_template
           fi
@@ -881,7 +883,7 @@ jobs:
           PY
 
       - name: Apply offline ADS profile-pool fingerprint
-        if: ${{ (inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1') && steps.egress.outputs.should_probe != 'false' }}
+        if: ${{ (inputs.variant == 'offline_ads_pool_ga_fresh_rechallenge' || inputs.variant == 'offline_ads_pool_balanced_shuffle_v1' || inputs.variant == 'offline_ads_pool_fresh_cookie_ab_v1' || inputs.variant == 'offline_ads_pool_diverse_proof_v1') && steps.egress.outputs.should_probe != 'false' }}
         shell: bash
         env:
           PROFILE_SELECTION_SEED: ${{ format('{0}:{1}', inputs.orchestration_id != '' && inputs.orchestration_id || github.run_id, startsWith(inputs.orchestration_id, 'lane-ab-') && inputs.orchestration_id || github.repository_owner) }}
@@ -889,7 +891,7 @@ jobs:
           set -euo pipefail
           mkdir -p .ads-offline/generated Results/diagnostics
           selection_args=()
-          if [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ]; then
+          if [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ] || [ "${{ inputs.variant }}" = "offline_ads_pool_diverse_proof_v1" ]; then
             selection_args=(--selection-seed "$PROFILE_SELECTION_SEED")
           fi
           python3 tools/fetch_ads_profile_template.py \
