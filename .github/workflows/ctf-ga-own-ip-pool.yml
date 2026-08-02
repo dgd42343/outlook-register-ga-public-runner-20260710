@@ -447,10 +447,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ] || [ "${{ inputs.variant }}" = "offline_ads_pool_diverse_proof_v1" ]; then
-            expected=502635b8402912f98edbab9cad1a6fca2311be4a
-          elif [ "${{ inputs.variant }}" = "offline_ads_pool_diverse_proof_v1" ]; then
+          if [ "${{ inputs.variant }}" = "offline_ads_pool_diverse_proof_v1" ]; then
             expected=86d8756920dd85cecbdaf75f9e6bc99cc7d513e5
+          elif [ "${{ inputs.variant }}" = "offline_ads_pool_balanced_shuffle_v1" ]; then
+            expected=502635b8402912f98edbab9cad1a6fca2311be4a
           elif [ "${{ inputs.variant }}" = "offline_ads_pool_fresh_cookie_ab_v1" ]; then
             expected=c183e15554378a23b0a79e38eeeffb5173fa9a3a
           else
