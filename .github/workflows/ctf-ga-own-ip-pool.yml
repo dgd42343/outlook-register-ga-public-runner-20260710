@@ -103,7 +103,7 @@ on:
       egress_prefix_denylist:
         description: "Optional comma-separated bad egress IP prefixes to skip before touching the target, e.g. 20.,52. Recommended file: config/egress_prefix_denylist.recommended.txt. Over-provision candidates (e.g. 1..36) when denylist is non-empty so skipped IPs do not starve live count."
         required: false
-        default: "4.,13.,20.,40.,52.,68.,74.249."
+        default: ""
       pre_first_hold_warmup_ms:
         description: "Override captcha pre-first-hold warmup in ms; empty uses config default"
         required: false
