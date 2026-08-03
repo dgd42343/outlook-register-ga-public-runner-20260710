@@ -459,6 +459,8 @@ jobs:
         shell: bash
         env:
           EGRESS_PREFIX_DENYLIST: ${{ inputs.egress_prefix_denylist }}
+          GA_COORDINATOR_URL: ${{ vars.GA_COORDINATOR_URL }}
+          GA_COORDINATOR_TOKEN: ${{ secrets.GA_COORDINATOR_TOKEN }}
         run: |
           set -euxo pipefail
           mkdir -p Results/diagnostics
@@ -493,9 +495,38 @@ jobs:
               if ip == token.rstrip(".") or ip.startswith(token):
                   matched = prefix
                   break
+          # Dynamic coordinator-based egress denylist check (fail-open).
+          coordinator_blocked = False
+          coordinator_reason = ""
+          coord_url = os.environ.get("GA_COORDINATOR_URL", "").rstrip("/")
+          coord_token = os.environ.get("GA_COORDINATOR_TOKEN", "")
+          if not matched and ip and coord_url and coord_token:
+              import urllib.request, urllib.error
+              check_url = f"{coord_url}/v1/egress/check?ip={ip}"
+              req = urllib.request.Request(check_url, headers={
+                  "Authorization": f"Bearer {coord_token}",
+                  "User-Agent": "github-actions-ga-egress/1.0",
+              })
+              try:
+                  with urllib.request.urlopen(req, timeout=8) as resp:
+                      eg = json.loads(resp.read())
+                  if eg.get("blocked"):
+                      coordinator_blocked = True
+                      coordinator_reason = f"coordinator_denylist prefix={eg.get('prefix')} reason={eg.get('reason')} riskblock_count={eg.get('riskblock_count')}"
+              except Exception as exc:
+                  print(f"coordinator egress check failed: {exc}")
           github_output = os.environ.get("GITHUB_OUTPUT")
           if matched:
               reason = f"egress_prefix_denylist matched prefix={matched} ip={ip}"
+              with open("Results/diagnostics/egress_skip.txt", "w", encoding="utf-8") as f:
+                  f.write(reason + "\n")
+              print(reason)
+              if github_output:
+                  with open(github_output, "a", encoding="utf-8") as f:
+                      f.write("should_probe=false\n")
+                      f.write(f"skip_reason={reason}\n")
+          elif coordinator_blocked:
+              reason = coordinator_reason
               with open("Results/diagnostics/egress_skip.txt", "w", encoding="utf-8") as f:
                   f.write(reason + "\n")
               print(reason)
@@ -2172,6 +2203,45 @@ jobs:
           out = Path("public-safe-verdict") / f"verdict-{safe['attempt']}.json"
           out.write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
           print(json.dumps(safe, ensure_ascii=False))
+
+          # Report egress outcome to coordinator for dynamic denylist learning.
+          coord_url = os.environ.get("GA_COORDINATOR_URL", "").rstrip("/")
+          coord_token = os.environ.get("GA_COORDINATOR_TOKEN", "")
+          egress_ip = ""
+          try:
+              eg_path = Path("Results/diagnostics/ga_egress.json")
+              if eg_path.exists():
+                  eg_data = json.loads(eg_path.read_text(encoding="utf-8"))
+                  egress_ip = str(eg_data.get("public_ip") or "")
+          except Exception:
+              pass
+          if egress_ip and coord_url and coord_token:
+              outcome_map = {
+                  "strict_success": "strict_success",
+                  "technical_pass_ip_blocked": "technical_pass_ip_blocked",
+                  "ip_riskblock": "ip_riskblock",
+              }
+              eg_outcome = outcome_map.get(category, "")
+              if eg_outcome:
+                  import urllib.request
+                  report_payload = json.dumps({
+                      "ip": egress_ip,
+                      "outcome": eg_outcome,
+                  }).encode()
+                  report_req = urllib.request.Request(
+                      f"{coord_url}/v1/egress/report",
+                      data=report_payload,
+                      headers={
+                          "Authorization": f"Bearer {coord_token}",
+                          "Content-Type": "application/json",
+                          "User-Agent": "github-actions-ga-egress/1.0",
+                      },
+                  )
+                  try:
+                      with urllib.request.urlopen(report_req, timeout=8) as resp:
+                          resp.read()
+                  except Exception as exc:
+                      print(f"coordinator egress report failed: {exc}")
           PY
 
       - name: Upload redacted verdict artifact
