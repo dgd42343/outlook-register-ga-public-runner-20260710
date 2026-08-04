@@ -534,8 +534,8 @@ jobs:
                   "retry timing A/B requires a hard limit of two physical holds"
               )
           if settle_mode == "slot_ab":
-              # same_challenge 只允许偶数槽；按模 4 分组才能让两个 settle 实验臂都可达。
-              settle_arm = "early0" if current % 4 == 2 else "control12"
+              # AB/BA 复现轮反转模 4 映射，抵消固定槽位和启动波次混杂。
+              settle_arm = "control12" if current % 4 == 2 else "early0"
           else:
               settle_arm = settle_mode
           settle_seconds = "0" if settle_arm == "early0" else "12"
