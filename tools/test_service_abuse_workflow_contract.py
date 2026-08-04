@@ -16,9 +16,10 @@ class ServiceAbuseWorkflowContractTests(unittest.TestCase):
             source,
         )
         self.assertEqual(
-            source.count("1913a13bbaff040a11516e2e9c2a084d277a24dd"),
+            source.count("4fd50c3494121e58d63d8515eb87122fcc65891d"),
             4,
         )
+        self.assertNotIn("1913a13bbaff040a11516e2e9c2a084d277a24dd", source)
         self.assertNotIn("ede1e7150e90cd7c0e11d3d217085f57c4176db2", source)
 
     def test_controller_overlay_identity_follows_pinned_private_commit(self):
@@ -91,6 +92,21 @@ class ServiceAbuseWorkflowContractTests(unittest.TestCase):
             'settle_arm = "early0" if current % 2 else "control12"',
             source,
         )
+
+    def test_settle_observability_is_redacted_into_the_public_verdict(self):
+        source = WORKFLOW.read_text(encoding="utf-8")
+
+        # 公共 artifact 只允许布尔值、有界整数和固定枚举。
+        for field in (
+            "natural_same_challenge_settle_reached",
+            "natural_same_challenge_settle_waited_ms",
+            "natural_same_challenge_settle_exit_reason",
+            "natural_same_challenge_settle_pending_scope",
+        ):
+            self.assertIn(f'"{field}"', source)
+        self.assertIn('"late-success"', source)
+        self.assertIn('"stable-minus1"', source)
+        self.assertIn('"no-evidence"', source)
 
 
 if __name__ == "__main__":

@@ -147,7 +147,7 @@ jobs:
     env:
       GA_COORDINATOR_URL: ${{ vars.GA_COORDINATOR_URL }}
       GA_COORDINATOR_TOKEN: ${{ secrets.GA_COORDINATOR_TOKEN }}
-      RECOVERY_SOURCE_REF: "1913a13bbaff040a11516e2e9c2a084d277a24dd"
+      RECOVERY_SOURCE_REF: "4fd50c3494121e58d63d8515eb87122fcc65891d"
     steps:
       - name: Fail closed around active scheduled registration
         id: conflicts
@@ -183,7 +183,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: "1913a13bbaff040a11516e2e9c2a084d277a24dd"
+          ref: "4fd50c3494121e58d63d8515eb87122fcc65891d"
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
 
@@ -335,7 +335,7 @@ jobs:
       NATURAL_SAME_CHALLENGE_SETTLE_MODE: ${{ inputs.natural_same_challenge_settle_mode || 'control12' }}
       HSPROTECT_MAIN_ASSET_SHA256: ${{ inputs.hsprotect_main_asset_sha256 || '77aed42430ae5f8c15294950fc69c37fa1ca52cec4c32d50e890e8b80830b502' }}
       HSPROTECT_MAIN_ASSET_FAMILY_SHA256: "b8f8b46fe3c73ba6b1756d68b5233f4e76a8aff54e53455c4dd8f113f2935fca"
-      RECOVERY_SOURCE_REF: "1913a13bbaff040a11516e2e9c2a084d277a24dd"
+      RECOVERY_SOURCE_REF: "4fd50c3494121e58d63d8515eb87122fcc65891d"
     steps:
       - name: Reject GitHub UI re-runs
         if: github.run_attempt != 1
@@ -669,7 +669,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
-          ref: "1913a13bbaff040a11516e2e9c2a084d277a24dd"
+          ref: "4fd50c3494121e58d63d8515eb87122fcc65891d"
           ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
 
@@ -1804,6 +1804,33 @@ jobs:
               ),
               "natural_same_challenge_third_hold_verify_request_count": runtime.get(
                   "natural_same_challenge_third_hold_verify_request_count"
+              ),
+              # 只透传受控枚举和有界毫秒值，避免把自由文本写入公开 artifact。
+              "natural_same_challenge_settle_reached": bool(
+                  runtime.get("natural_same_challenge_settle_reached")
+              ),
+              "natural_same_challenge_settle_waited_ms": max(
+                  0,
+                  min(
+                      60000,
+                      int(runtime.get("natural_same_challenge_settle_waited_ms") or 0),
+                  ),
+              ),
+              "natural_same_challenge_settle_exit_reason": (
+                  runtime.get("natural_same_challenge_settle_exit_reason")
+                  if runtime.get("natural_same_challenge_settle_exit_reason") in {
+                      "not-reached", "in-progress", "ready", "late-success",
+                      "failure", "token-invalid", "proof-read-error",
+                      "wait-error", "timeout",
+                  }
+                  else "not-reached"
+              ),
+              "natural_same_challenge_settle_pending_scope": (
+                  runtime.get("natural_same_challenge_settle_pending_scope")
+                  if runtime.get("natural_same_challenge_settle_pending_scope") in {
+                      "not-reached", "stable-minus1", "no-evidence",
+                  }
+                  else "not-reached"
               ),
               "writeback_post_refresh_token_present": bool(writeback.get("post_refresh_token_present")),
               "completed": bool(completion.get("completed")),
