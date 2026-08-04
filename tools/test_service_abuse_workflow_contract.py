@@ -79,6 +79,19 @@ class ServiceAbuseWorkflowContractTests(unittest.TestCase):
             source,
         )
 
+    def test_settle_slot_ab_is_reachable_with_even_only_slots(self):
+        source = WORKFLOW.read_text(encoding="utf-8")
+
+        # same_challenge 会拒绝奇数槽，因此 settle A/B 必须在偶数槽内部继续二分。
+        self.assertIn(
+            'settle_arm = "early0" if current % 4 == 2 else "control12"',
+            source,
+        )
+        self.assertNotIn(
+            'settle_arm = "early0" if current % 2 else "control12"',
+            source,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

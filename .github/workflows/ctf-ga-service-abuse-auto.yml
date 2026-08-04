@@ -107,7 +107,7 @@ on:
         required: true
         default: "3"
       natural_same_challenge_settle_mode:
-        description: "Pre-approach retry timing: 12s control, guarded early treatment, or odd/even slot A/B"
+        description: "Pre-approach retry timing: 12s control, guarded early treatment, or even-slot modulo-4 A/B"
         required: true
         default: "control12"
         type: choice
@@ -534,7 +534,8 @@ jobs:
                   "retry timing A/B requires a hard limit of two physical holds"
               )
           if settle_mode == "slot_ab":
-              settle_arm = "early0" if current % 2 else "control12"
+              # same_challenge 只允许偶数槽；按模 4 分组才能让两个 settle 实验臂都可达。
+              settle_arm = "early0" if current % 4 == 2 else "control12"
           else:
               settle_arm = settle_mode
           settle_seconds = "0" if settle_arm == "early0" else "12"
