@@ -184,7 +184,7 @@ jobs:
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
           ref: "4fd50c3494121e58d63d8515eb87122fcc65891d"
-          ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
+          token: ${{ secrets.PRIVATE_SOURCE_PAT }}
           persist-credentials: false
 
       - name: Verify private recovery planner commit
@@ -670,7 +670,7 @@ jobs:
         with:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
           ref: "4fd50c3494121e58d63d8515eb87122fcc65891d"
-          ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
+          token: ${{ secrets.PRIVATE_SOURCE_PAT }}
           persist-credentials: false
 
       - name: Verify private recovery control commit
@@ -783,7 +783,7 @@ jobs:
           repository: ${{ vars.PRIVATE_SOURCE_REPOSITORY }}
           ref: ${{ (inputs.recovery_human_mode || 'natural10') == 'exact5s' && '00b68437e041cbdcee2be209a18d7a5592f4c2dd' || '875b0571d5b9c88b89a5bbc64f30488ee9565962' }}
           path: .production-human-runtime
-          ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
+          token: ${{ secrets.PRIVATE_SOURCE_PAT }}
           persist-credentials: false
 
       - name: Verify admitted HumanCaptcha runtime
