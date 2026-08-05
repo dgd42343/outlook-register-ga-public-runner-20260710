@@ -1,0 +1,127 @@
+name: CTF GA service-abuse recovery timebox
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration_minutes:
+        description: "Stop dispatching new recovery waves after this many minutes"
+        required: true
+        default: "180"
+      child_ref:
+        description: "Ref used for child recovery workflow dispatches"
+        required: true
+        default: "main"
+      job_slots_json:
+        description: "Recovery slots used by each child wave"
+        required: true
+        default: "[2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80,82,84,86,88,90,92,94,96,98,100,102,104,106,108,110,112,114,116,118,120,122,124,126,128,130,132,134,136,138,140,142,144,146,148,150,152,154,156,158,160,162,164,166,168,170,172,174,176,178,180,182,184,186,188,190,192,194,196,198,200]"
+      child_timeout_minutes:
+        description: "Whole timeout passed to each child recovery wave"
+        required: true
+        default: "120"
+      poll_seconds:
+        description: "Child run polling interval"
+        required: true
+        default: "20"
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: service-abuse-recovery-timebox
+  cancel-in-progress: false
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      DURATION_MINUTES: ${{ inputs.duration_minutes }}
+      CHILD_REF: ${{ inputs.child_ref }}
+      JOB_SLOTS_JSON: ${{ inputs.job_slots_json }}
+      CHILD_TIMEOUT_MINUTES: ${{ inputs.child_timeout_minutes }}
+      POLL_SECONDS: ${{ inputs.poll_seconds }}
+    steps:
+      - name: Dispatch bounded recovery waves
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          duration="${DURATION_MINUTES}"
+          poll="${POLL_SECONDS}"
+          if ! [[ "$duration" =~ ^[0-9]+$ ]] || (( duration < 1 || duration > 300 )); then
+            echo "duration_minutes must be an integer in range 1..300" >&2
+            exit 2
+          fi
+          if ! [[ "$poll" =~ ^[0-9]+$ ]] || (( poll < 5 || poll > 120 )); then
+            echo "poll_seconds must be an integer in range 5..120" >&2
+            exit 2
+          fi
+
+          start_epoch="$(date +%s)"
+          deadline_epoch="$((start_epoch + duration * 60))"
+          wave=0
+          total_children=0
+          last_conclusion=""
+
+          while (( $(date +%s) < deadline_epoch )); do
+            wave="$((wave + 1))"
+            before_id="$(
+              gh api \
+                "repos/${REPOSITORY}/actions/workflows/ctf-ga-service-abuse-auto.yml/runs?event=workflow_dispatch&per_page=1" \
+                --jq '.workflow_runs[0].id // 0'
+            )"
+
+            gh workflow run ctf-ga-service-abuse-auto.yml \
+              --repo "${REPOSITORY}" \
+              --ref "${CHILD_REF}" \
+              -f "job_slots_json=${JOB_SLOTS_JSON}" \
+              -f "natural_same_challenge_settle_mode=early0" \
+              -f "timeout_minutes=${CHILD_TIMEOUT_MINUTES}"
+
+            child_id=""
+            for _ in $(seq 1 60); do
+              child_id="$(
+                gh api \
+                  "repos/${REPOSITORY}/actions/workflows/ctf-ga-service-abuse-auto.yml/runs?event=workflow_dispatch&branch=${CHILD_REF}&per_page=20" \
+                  --jq "[.workflow_runs[] | select(.id > ${before_id})] | sort_by(.id) | .[0].id // empty"
+              )"
+              if [[ -n "$child_id" ]]; then
+                break
+              fi
+              sleep 2
+            done
+            if [[ -z "$child_id" ]]; then
+              echo "wave ${wave}: dispatched child run was not discoverable" >&2
+              exit 3
+            fi
+
+            total_children="$((total_children + 1))"
+            echo "wave ${wave}: child_run=${child_id}"
+
+            while true; do
+              row="$(gh api "repos/${REPOSITORY}/actions/runs/${child_id}")"
+              status="$(jq -r '.status' <<<"$row")"
+              conclusion="$(jq -r '.conclusion // ""' <<<"$row")"
+              if [[ "$status" == "completed" ]]; then
+                last_conclusion="$conclusion"
+                echo "wave ${wave}: completed conclusion=${conclusion}"
+                break
+              fi
+              sleep "$poll"
+            done
+          done
+
+          elapsed="$(( $(date +%s) - start_epoch ))"
+          {
+            echo "## Recovery timebox"
+            echo
+            echo "- duration limit: ${duration} minutes"
+            echo "- elapsed: ${elapsed} seconds"
+            echo "- child waves dispatched: ${total_children}"
+            echo "- final child conclusion: ${last_conclusion:-none}"
+            echo "- terminal reason: timebox_expired"
+          } >> "$GITHUB_STEP_SUMMARY"
