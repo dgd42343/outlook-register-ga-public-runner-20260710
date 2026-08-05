@@ -66,6 +66,7 @@ jobs:
           wave=0
           total_children=0
           last_conclusion=""
+          consecutive_failed_children=0
 
           while (( $(date +%s) < deadline_epoch )); do
             wave="$((wave + 1))"
@@ -109,6 +110,15 @@ jobs:
               if [[ "$status" == "completed" ]]; then
                 last_conclusion="$conclusion"
                 echo "wave ${wave}: completed conclusion=${conclusion}"
+                if [[ "$conclusion" == "success" ]]; then
+                  consecutive_failed_children=0
+                else
+                  consecutive_failed_children="$((consecutive_failed_children + 1))"
+                  if (( consecutive_failed_children >= 2 )); then
+                    echo "stopping after ${consecutive_failed_children} consecutive failed child workflows" >&2
+                    exit 4
+                  fi
+                fi
                 break
               fi
               sleep "$poll"
